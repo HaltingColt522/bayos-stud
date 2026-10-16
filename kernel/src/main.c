@@ -37,15 +37,17 @@ static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARK
 
 // Halt and catch fire function.
 static void hcf(void) {
-	asm ("cli; hlt");
+	asm("cli; hlt");
 }
 
 void _start(void) {
-	if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision))
+	if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
 		hcf();
+	}
 
-	if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1)
+	if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
 		hcf();
+	}
 
 	framebuffer_t fb;
 	framebuffer_init(framebuffer_request.response->framebuffers[0], &fb);

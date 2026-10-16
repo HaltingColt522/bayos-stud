@@ -40,7 +40,7 @@ static inline void newline(framebuffer_t *fb) {
 }
 
 static inline void clear(framebuffer_t *fb) {
-	uint64_t size = fb->info.bpp / 8 * width(fb) *height(fb);
+	uint64_t size = fb->info.bpp / 8 * width(fb) * height(fb);
 	fb->x_pos = BORDER_PADDING;
 	fb->y_pos = BORDER_PADDING;
 	memset(fb->buffer, 0, size);

@@ -15,7 +15,7 @@ static inline uint64_t calc_header_pages(uint64_t page_count) {
 		uint64_t usable_pages = page_count - header_pages;
 		uint64_t needed_bytes = OFFSET_OF_DATA_IN_AREA + bitmap_bytes_for(usable_pages);
 		header_pages = (needed_bytes + 0x1000 - 1) / 0x1000;
-		if (header_pages == 0) header_pages = 1;
+		if (header_pages == 0) { header_pages = 1; }
 	} while (header_pages != prev);
 
 	return header_pages;
@@ -30,11 +30,11 @@ void bitmap_allocator_init(struct limine_memmap_response *memmap, uint64_t offse
 			uint64_t header_pages = calc_header_pages(total_pages);
 			uint64_t usable_pages = total_pages - header_pages;
 
-			ba->areas[entry_count] = (void*)(entry->base + offset);
+			ba->areas[entry_count] = (void *)(entry->base + offset);
 
 			memset(ba->areas[entry_count], 0, header_pages * 0x1000);
 
-			ba->areas[entry_count]->first_frame = (void*)(entry->base + header_pages * 0x1000);
+			ba->areas[entry_count]->first_frame = (void *)(entry->base + header_pages * 0x1000);
 			ba->areas[entry_count]->pages_count = usable_pages;
 			ba->areas[entry_count]->used = 0;
 
@@ -45,8 +45,9 @@ void bitmap_allocator_init(struct limine_memmap_response *memmap, uint64_t offse
 }
 
 static inline int find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
-	if (bitmap == NULL)
+	if (bitmap == NULL) {
 		return -1;
+	}
 
 	uint64_t byte_count = (page_count + 7) / 8;
 
@@ -54,8 +55,9 @@ static inline int find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
 		for (uint64_t j = 0; j < 8; j++) {
 			uint64_t page = i * 8 + j;
 
-			if (page >= page_count)
+			if (page >= page_count) {
 				return -1;
+			}
 
 			if ((bitmap[i] & (uint8_t)(1U << j)) == 0) {
 				bitmap[i] |= (uint8_t)(1U << j);
@@ -71,8 +73,9 @@ uint64_t allocate_frame(bitmap_allocator_t *ba) {
 	for (uint64_t i = 0; i < ba->areas_count; i++) {
 		typeof(*ba->areas[i]) *area = ba->areas[i];
 
-		if (area->used >= area->pages_count)
+		if (area->used >= area->pages_count) {
 			continue;
+		}
 
 		int index = find_unused_frame(area->data, area->pages_count);
 
@@ -90,7 +93,7 @@ uint64_t allocate_frame(bitmap_allocator_t *ba) {
 void free_frame(bitmap_allocator_t *ba, uint64_t page) {
 	for (size_t i = 0; i < ba->areas_count; i++) {
 		if (page >= (uint64_t)ba->areas[i]->first_frame
-		    && page < (uint64_t)ba->areas[i]->first_frame + ba->areas[i]->pages_count * 0x1000) {
+		        && page < (uint64_t)ba->areas[i]->first_frame + ba->areas[i]->pages_count * 0x1000) {
 			// the page is in this area of memory
 			ba->areas[i]->used--;
 			int index = (page - (uint64_t)ba->areas[i]->first_frame) / 0x1000;

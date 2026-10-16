@@ -1,6 +1,6 @@
 #include <gdt.h>
 
-static uint8_t kernel_stack[1024] __attribute__((aligned (16)));
+static uint8_t kernel_stack[1024] __attribute__((aligned(16)));
 
 /* GDT Descriptor (GDTR) points to the GDT which will be loaded via asm
  * in load_gdt(). See: https://wiki.osdev.org/Global_Descriptor_Table#GDTR */
@@ -48,7 +48,7 @@ _Static_assert(sizeof(struct gdt_tss) == 104, "TSS Segment size faulty (!= 104)!
 /* returns a GDT segment descriptor. Cannot be used for TSS because only access
  * and flags can be modyfied here. */
 static struct gdt_seg_descriptor generate_entry(uint8_t access, uint8_t flags) {
-	return (struct gdt_seg_descriptor){
+	return (struct gdt_seg_descriptor) {
 		.limit_low = 0x0FFFF,
 		.base_low = 0,
 		.base_middle = 0,
@@ -62,8 +62,8 @@ static struct gdt_seg_descriptor generate_entry(uint8_t access, uint8_t flags) {
 _Static_assert(sizeof(struct gdt_seg_descriptor) == 8, "GDT Segment size faulty (!= 8)!");
 
 static struct gdt_tss_descriptor generate_tss_entry(uint8_t access, uint8_t flags,
-		uint64_t base, uint32_t limit) {
-	return (struct gdt_tss_descriptor){
+        uint64_t base, uint32_t limit) {
+	return (struct gdt_tss_descriptor) {
 		.limit_low = limit & 0xFFFF,
 		.base_low = base & 0xFFFF,
 		.base_middle = (base >> 16) & 0xFF,
@@ -78,7 +78,7 @@ static struct gdt_tss_descriptor generate_tss_entry(uint8_t access, uint8_t flag
 _Static_assert(sizeof(struct gdt_tss_descriptor) == 16, "TSS descriptor size faulty (!= 16)!");
 
 /* The GDT itself */
-__attribute__((packed)) struct gdt_gdt{
+__attribute__((packed)) struct gdt_gdt {
 	struct gdt_seg_descriptor null;
 	struct gdt_seg_descriptor kernel_code;
 	struct gdt_seg_descriptor kernel_data;
@@ -101,33 +101,33 @@ static void reload_segments(void) {
 	/* Kernel Data Segment begins at offset 0x10. Data Segments need to point to
 	 * 0x10 now */
 	__asm__ volatile(
-			"mov $0x10, %%ax\n\t"
-			"mov %%ax, %%ds\n\t"
-			"mov %%ax, %%es\n\t"
-			"mov %%ax, %%ss\n\t"
-			"mov %%ax, %%fs\n\t"
-			"mov %%ax, %%gs"
-			: /* no output needed*/
-			: /* no inputs needed*/
-			: "ax", "memory");
+	    "mov $0x10, %%ax\n\t"
+	    "mov %%ax, %%ds\n\t"
+	    "mov %%ax, %%es\n\t"
+	    "mov %%ax, %%ss\n\t"
+	    "mov %%ax, %%fs\n\t"
+	    "mov %%ax, %%gs"
+	    : /* no output needed*/
+	    : /* no inputs needed*/
+	    : "ax", "memory");
 
 	/* Kernel Code Segment begins at 0x08 */
 	__asm__ volatile(
-			"pushq $0x08\n\t"
-			"lea 1f(%%rip), %%rax\n\t" /* load address from rip(next label 1) into rax */
-			"pushq %%rax\n\t"
-			"lretq\n\t"
-			"1:"
-			:
-			:
-			: "rax", "memory");
+	    "pushq $0x08\n\t"
+	    "lea 1f(%%rip), %%rax\n\t" /* load address from rip(next label 1) into rax */
+	    "pushq %%rax\n\t"
+	    "lretq\n\t"
+	    "1:"
+	    :
+	    :
+	    : "rax", "memory");
 
 	__asm__ volatile(
-			"mov $0x18, %%ax\n\t"
-			"ltr %%ax"
-			:
-			:
-			: "ax", "memory");
+	    "mov $0x18, %%ax\n\t"
+	    "ltr %%ax"
+	    :
+	    :
+	    : "ax", "memory");
 }
 
 int8_t gdt_init(void) {
@@ -144,7 +144,7 @@ int8_t gdt_init(void) {
 	/* User Code Segment */
 	gdt.user_code = generate_entry(0xFB, 0xA);
 
-	gdtr = (struct gdt_gdtr){
+	gdtr = (struct gdt_gdtr) {
 		.limit = sizeof(gdt) - 1,
 		.offset = (uint64_t)&gdt,
 	};

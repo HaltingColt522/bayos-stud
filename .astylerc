@@ -1,0 +1,12 @@
+--mode=c
+--style=java
+--indent=tab=4
+--align-pointer=name
+--pad-oper
+--pad-comma
+--pad-header
+--unpad-paren
+--add-braces
+--keep-one-line-blocks
+--lineend=linux
+--suffix=none
