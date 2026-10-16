@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limine.h>
+#include <framebuffer.h>
+#include <printk.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -24,17 +26,19 @@ static void hcf(void) {
 }
 
 void _start(void) {
-    // Ensure the bootloader actually understands our base revision (see spec).
-    if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
+    if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision))
         hcf();
-    }
 
-    // Ensure we got a framebuffer.
-    if (framebuffer_request.response == NULL
-     || framebuffer_request.response->framebuffer_count < 1) {
+    if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1)
         hcf();
-    }
 
-    // We're done, just hang...
+    framebuffer_t fb;
+    framebuffer_init(framebuffer_request.response->framebuffers[0], &fb);
+
+    early_printk_init(&fb);
+
+    printk(QEMU_SERIAL | EARLY, "BAYOS\n");
+    printk(QEMU_SERIAL | EARLY, "[OK] Framebuffer\n");
+
     hcf();
 }

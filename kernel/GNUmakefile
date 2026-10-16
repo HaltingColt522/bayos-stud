@@ -124,6 +124,7 @@ override NASMFLAGS := \
 # differ on both. Comes before LDFLAGS, which can override it.
 override LDFLAGS := \
     -Wl,--build-id=sha1 \
+	assets/font.o \
     $(LDFLAGS)
 
 # If the C compiler is Clang, set the target as needed.
