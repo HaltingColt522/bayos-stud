@@ -4,6 +4,7 @@
 #include <limine.h>
 #include <framebuffer.h>
 #include <printk.h>
+#include <interrupts.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -39,6 +40,9 @@ void _start(void) {
 
     printk(QEMU_SERIAL | EARLY, "BAYOS\n");
     printk(QEMU_SERIAL | EARLY, "[OK] Framebuffer\n");
+
+    exceptions_init();
+    printk(QEMU_SERIAL | EARLY, "[OK] Exceptions\n");
 
     hcf();
 }
