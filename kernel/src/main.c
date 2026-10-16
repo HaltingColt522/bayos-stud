@@ -5,6 +5,7 @@
 #include <framebuffer.h>
 #include <printk.h>
 #include <interrupts.h>
+#include <gdt.h>
 #include <pmm.h>
 
 __attribute__((used, section(".limine_requests")))
@@ -54,18 +55,23 @@ void _start(void) {
     printk(QEMU_SERIAL | EARLY, "BAYOS\n");
     printk(QEMU_SERIAL | EARLY, "[OK] Framebuffer\n");
 
+	  gdt_init();
+	  printk(QEMU_SERIAL | EARLY, "[OK] GDT\n");
+
     exceptions_init();
     printk(QEMU_SERIAL | EARLY, "[OK] Exceptions\n");
 
-	if (memory_map_request.response == NULL) {
-		printk(QEMU_SERIAL | EARLY, "[FAIL] no memory map provided by limine\n");
+	  if (memory_map_request.response == NULL) {
+		    printk(QEMU_SERIAL | EARLY, "[FAIL] no memory map provided by limine\n");
         hcf();
-	}
-	if (hhdm_request.response == NULL) {
-		printk(QEMU_SERIAL | EARLY, "[FAIL] no hhdm mapping provided by limine\n");
+	  }
+	  
+    if (hhdm_request.response == NULL) {
+		    printk(QEMU_SERIAL | EARLY, "[FAIL] no hhdm mapping provided by limine\n");
         hcf();
-	}
-	bitmap_allocator_t frame_allocator;
+	  }
+
+    bitmap_allocator_t frame_allocator;
     bitmap_allocator_init(memory_map_request.response, hhdm_request.response->offset, &frame_allocator);
     printk(QEMU_SERIAL | EARLY, "[OK] Bitmap Allocator\n");
 
