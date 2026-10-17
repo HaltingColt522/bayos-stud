@@ -23,9 +23,16 @@ typedef struct {
 	} *areas[0x100];
 } bitmap_allocator_t;
 
+typedef enum {
+	PMM_OK = 0,
+	PMM_ERR_UNALIGNED = 1,
+	PMM_ERR_DOUBLE_FREE = 2,
+	PMM_ERR_INVALID_ADDR = 3
+} pmm_status_t;
+
 void bitmap_allocator_init(struct limine_memmap_response *mmap, uint64_t offset, bitmap_allocator_t *ba);
 
 uint64_t allocate_frame(bitmap_allocator_t *ba);
-void free_frame(bitmap_allocator_t *ba, uint64_t page);
+pmm_status_t free_frame(bitmap_allocator_t *ba, uint64_t page);
 
 #endif // PMM_H
