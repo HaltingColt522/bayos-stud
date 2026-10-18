@@ -1,6 +1,8 @@
 #include <framebuffer.h>
 #include <memory.h>
 
+Mutex(framebuffer_t) g_fb;
+
 extern char _binary_zap_vga16_psf_start;
 extern char _binary_zap_vga16_psf_end;
 
