@@ -1,0 +1,82 @@
+#include <vmm.h>
+#include <stddef.h>
+
+struct limine_hhdm_response *hhdm_response = NULL;
+static uint64_t hhdm_offset = 0;
+
+/* takes a virtual addr and returns seperate entries to access individual tables */
+struct virt_addr_t separate_addr(uint64_t addr) {
+	uint16_t offset, PT, PD, PDP, PML4;
+	offset = addr & 0xFFF;
+	addr >>= 12;
+	PT = addr & 0x1FF;
+	addr >>= 9;
+	PD = addr & 0x1FF;
+	addr >>= 9;
+	PDP = addr & 0x1FF;
+	addr >>= 9;
+	PML4 = addr & 0x1FF;
+
+	return (struct virt_addr_t) {
+		.offset = offset,
+		.PT = PT,
+		.PD = PD,
+		.PDP = PDP,
+		.PML4 = PML4
+	};
+}
+
+uint64_t *get_table(uint64_t addr) {
+	addr &= VMM_ADDR_MASK_4K;
+	return (uint64_t *)(addr + hhdm_offset);
+}
+
+vmm_status_t vmm_translate(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret) {
+	if (!(((int64_t)virt >> 47) == 0 || ((int64_t)virt >> 47) == -1)) {
+		return VMM_ERR_NON_CANONICAL;
+	}
+
+	struct virt_addr_t sep = separate_addr(virt);
+	uint64_t idxs[4] = {sep.PML4, sep.PDP, sep.PD, sep.PT};
+	uint64_t *tbl = get_table(phys_pml4);
+
+	for (uint8_t lvl = 4; lvl >= 1; lvl--) {
+		uint64_t entry = tbl[ idxs[4 - lvl] ];
+
+		if (!(entry & VMM_PRESENT)) {
+			return VMM_ERR_NOT_MAPPED;
+		}
+
+		if (lvl == 1) {
+			*phys_ret = (entry & VMM_ADDR_MASK_4K) + sep.offset;
+			return VMM_OK;
+		}
+
+		if ((lvl == 3 || lvl == 2) && (entry & VMM_PS)) {
+			uint64_t page_size = (lvl == 2) ? VMM_PAGE_SIZE_2M : VMM_PAGE_SIZE_1G;
+			uint64_t addr_mask = (lvl == 2) ? VMM_ADDR_MASK_2M : VMM_ADDR_MASK_1G;
+			*phys_ret = (entry & addr_mask) + (virt & (page_size - 1));
+
+			return VMM_OK;
+		}
+
+		tbl = get_table(entry);
+	}
+
+	return VMM_ERR_UNKNOWN_ERR;
+}
+
+vmm_status_t vmm_init(void) {
+	if (hhdm_request.response == NULL) {
+		return VMM_ERR_NULL_HHDM;
+	}
+
+	hhdm_response = hhdm_request.response;
+	hhdm_offset = hhdm_response->offset;
+
+	/* for future use */
+	uint64_t cr3;
+	__asm__ volatile("mov %%cr3, %0" : "=r"(cr3) : : "memory");
+
+	return VMM_OK;
+}

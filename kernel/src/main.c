@@ -7,6 +7,7 @@
 #include <interrupts.h>
 #include <gdt.h>
 #include <pmm.h>
+#include <vmm.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -76,6 +77,12 @@ void _start(void) {
 	bitmap_allocator_t frame_allocator;
 	bitmap_allocator_init(memory_map_request.response, hhdm_request.response->offset, &frame_allocator);
 	printk(QEMU_SERIAL | EARLY, "[OK] Bitmap Allocator\n");
+
+	if (vmm_init() != VMM_OK) {
+		printk(QEMU_SERIAL | EARLY, "[FAIL] initialize VMM failed\n");
+		hcf();
+	}
+	printk(QEMU_SERIAL | EARLY, "[OK] VMM\n");
 
 	hcf();
 }
