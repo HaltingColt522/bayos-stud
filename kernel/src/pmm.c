@@ -45,8 +45,8 @@ void bitmap_allocator_init(struct limine_memmap_response *memmap, uint64_t offse
 	ba->areas_count = entry_count;
 }
 
-static inline int find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
-	if (bitmap == NULL) {
+static inline int64_t find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
+	if (bitmap == NULL || page_count == 0) {
 		return -1;
 	}
 
@@ -61,8 +61,7 @@ static inline int find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
 			}
 
 			if ((bitmap[i] & (uint8_t)(1U << j)) == 0) {
-				bitmap[i] |= (uint8_t)(1U << j);
-				return (int)page;
+				return (int64_t)page;
 			}
 		}
 	}
@@ -71,8 +70,14 @@ static inline int find_unused_frame(uint8_t *bitmap, uint64_t page_count) {
 }
 
 uint64_t allocate_frame(bitmap_allocator_t *ba) {
+	if (ba == NULL) {
+		return 0;
+	}
 	for (uint64_t i = 0; i < ba->areas_count; i++) {
 		typeof(*ba->areas[i]) *area = ba->areas[i];
+		if (area == NULL) {
+			continue;
+		}
 
 		if (area->used >= area->pages_count) {
 			continue;
@@ -84,6 +89,9 @@ uint64_t allocate_frame(bitmap_allocator_t *ba) {
 			continue;
 		}
 
+		uint64_t page = (uint64_t)index;
+
+		area->data[page / 8] |= (uint8_t)(1U << (page % 8));
 		area->used++;
 
 		return (uint64_t)area->first_frame + (uint64_t)index * 0x1000;
