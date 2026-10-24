@@ -1,6 +1,8 @@
 #include <gdt.h>
 
 static uint8_t kernel_stack[1024] __attribute__((aligned(16)));
+// the stack used when interrupts happen in ring 3
+static uint8_t interrupt_stack[0x1000] __attribute__((aligned(16)));
 
 /* GDT Descriptor (GDTR) points to the GDT which will be loaded via asm
  * in load_gdt(). See: https://wiki.osdev.org/Global_Descriptor_Table#GDTR */
@@ -139,6 +141,7 @@ int8_t gdt_init(void) {
 	/* TSS */
 	gdt.tss = generate_tss_entry(0x89, 0x0, (uint64_t)&tss, sizeof(tss) - 1);
 	tss.ist[0] = (uint64_t)(kernel_stack + sizeof(kernel_stack));
+	tss.rsp[0] = (uint64_t)(interrupt_stack + sizeof(interrupt_stack));
 	/* User Data Segment; Access: */
 	gdt.user_data = generate_entry(0xF3, 0xC);
 	/* User Code Segment */

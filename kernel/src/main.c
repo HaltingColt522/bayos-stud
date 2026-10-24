@@ -7,9 +7,10 @@
 #include <interrupts.h>
 #include <gdt.h>
 #include <pmm.h>
+#include <sched.h>
 
 __attribute__((used, section(".limine_requests")))
-static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
+static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
 
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_framebuffer_request framebuffer_request = {
@@ -77,5 +78,33 @@ void _start(void) {
 	bitmap_allocator_init(memory_map_request.response, hhdm_request.response->offset, &frame_allocator);
 	printk(QEMU_SERIAL | EARLY, "[OK] Bitmap Allocator\n");
 
-	hcf();
+	sched_init();
+	printk(QEMU_SERIAL | EARLY, "[OK] Scheduler\n");
+
+	// this is where mutexes for global variables are created
+	// mutexes are used like so: (example for bitmap_allocator)
+	// 	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	// 	... use the frame allocator
+	// 	... NEVER take more than one mutex at once
+	// 	MUTEX_UNLOCK(g_ba);
+	mutex_t mutex_list[2] = {0};
+	g_ba.data = &frame_allocator;
+	g_ba.lock = mutex_create(&mutex_list[0]);
+	g_fb.data = &fb;
+	g_fb.lock = mutex_create(&mutex_list[1]);
+	printk(QEMU_SERIAL | EARLY, "[OK] Mutexes\n");
+
+	// as soon as the scheduler is started
+	// we should only use the global version of things
+	// like framebuffer, frame_allocator and so on
+	// so printk(EARLY, ... also should not be used anymore
+	printk(QEMU_SERIAL | EARLY, "Starting scheduler\n");
+	// this line starts the scheduler
+	asm volatile("sti");
+
+	for (;;)
+		// since we have no use for our timeslice, just yield
+	{
+		yield();
+	}
 }

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <limine.h>
+#include <sem.h>
 
 typedef struct {
 	struct {
@@ -20,5 +21,8 @@ typedef struct {
 int framebuffer_putchar(framebuffer_t *fb, int c);
 
 void framebuffer_init(struct limine_framebuffer *info, framebuffer_t *fb);
+
+DEFINE_MUTEX_TYPE(framebuffer_t);
+extern Mutex(framebuffer_t) g_fb;
 
 #endif // FRAMEBUFFER_H

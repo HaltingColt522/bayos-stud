@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <limine.h>
-
+#include <sem.h>
 
 // TODO: performance improvements to speed up searching the bitmap. For example keeping track of the last allocated page and checking if the one after it is free, and only if it is not scanning the whole list
 #define OFFSET_OF_DATA_IN_AREA 24
@@ -27,5 +27,8 @@ void bitmap_allocator_init(struct limine_memmap_response *mmap, uint64_t offset,
 
 uint64_t allocate_frame(bitmap_allocator_t *ba);
 void free_frame(bitmap_allocator_t *ba, uint64_t page);
+
+DEFINE_MUTEX_TYPE(bitmap_allocator_t);
+extern Mutex(bitmap_allocator_t) g_ba;
 
 #endif // PMM_H
