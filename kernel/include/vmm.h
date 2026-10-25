@@ -58,5 +58,6 @@ vmm_status_t vmm_init(bitmap_allocator_t *ba);
 struct virt_addr_t separate_addr(uint64_t addr);
 vmm_status_t vmm_translate(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
 vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t flags);
+vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
 
 #endif // !_VMM_H

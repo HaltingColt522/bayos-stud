@@ -113,7 +113,7 @@ vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t 
 
 			tbl[ idxs[4 - lvl] ] = new_tbl | VMM_PRESENT | VMM_RW | VMM_US;
 			tbl = get_table(new_tbl);
-		} else if ((entry & VMM_PS)) {
+		} else if (entry & VMM_PS) {
 			return VMM_ERR_HUGE_PAGE_CONFLICT;
 		} else {
 			tbl = get_table(entry);
@@ -126,6 +126,51 @@ vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t 
 		tbl[ idxs[3] ] = phys | flags | VMM_PRESENT;
 		return VMM_OK;
 	}
+}
+
+vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret) {
+	if ((phys_pml4 == 0) || (phys_ret == NULL)) {
+		return VMM_ERR_NULL_FRAME;
+	}
+	if (!(((int64_t)virt >> 47) == 0 || ((int64_t)virt >> 47) == -1)) {
+		return VMM_ERR_NON_CANONICAL;
+	}
+
+	if ((virt & (VMM_PAGE_SIZE_4K - 1)) != 0) {
+		return VMM_ERR_NOT_ALIGNED;
+	}
+
+	struct virt_addr_t sep = separate_addr(virt);
+	uint64_t idxs[4] = {sep.PML4, sep.PDP, sep.PD, sep.PT};
+	uint64_t *tbl = get_table(phys_pml4);
+
+	for (uint8_t lvl = 4; lvl >= 2; lvl--) {
+		uint64_t entry = tbl[ idxs[4 - lvl] ];
+
+		if (!(entry & VMM_PRESENT)) {
+			return VMM_ERR_NOT_MAPPED;
+		}
+
+		if (entry & VMM_PS) {
+			return VMM_ERR_HUGE_PAGE_CONFLICT;
+		}
+
+		tbl = get_table(entry);
+	}
+
+	uint64_t leaf = tbl[ idxs[3] ];
+
+	if (!(leaf & VMM_PRESENT)) {
+		return VMM_ERR_NOT_MAPPED;
+	}
+
+	*phys_ret = leaf & VMM_ADDR_MASK_4K;
+
+	tbl[ idxs[3] ] = 0;
+
+	__asm__ volatile("invlpg (%0)" : : "r"(virt) : "memory");
+
+	return VMM_OK;
 }
 
 vmm_status_t vmm_init(bitmap_allocator_t *bitmap_a) {
