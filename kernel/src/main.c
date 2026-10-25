@@ -78,10 +78,11 @@ void _start(void) {
 	bitmap_allocator_init(memory_map_request.response, hhdm_request.response->offset, &frame_allocator);
 	printk(QEMU_SERIAL | EARLY, "[OK] Bitmap Allocator\n");
 
-	if (vmm_init() != VMM_OK) {
+	if (vmm_init(&frame_allocator) != VMM_OK) {
 		printk(QEMU_SERIAL | EARLY, "[FAIL] initialize VMM failed\n");
 		hcf();
 	}
+
 	printk(QEMU_SERIAL | EARLY, "[OK] VMM\n");
 
 	hcf();
