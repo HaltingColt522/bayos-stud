@@ -124,6 +124,9 @@ vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t 
 		return VMM_ERR_ALR_MAPPED;
 	} else {
 		tbl[ idxs[3] ] = phys | flags | VMM_PRESENT;
+		/* doesn't need to be marked as invalid (like in unmap) because the CPU
+		 * only caches present entries, need to invalidate only when entries get
+		 * set as not present */
 		return VMM_OK;
 	}
 }
