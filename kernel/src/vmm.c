@@ -1,6 +1,7 @@
 #include <vmm.h>
 #include <stddef.h>
 #include <memory.h>
+#include <printk.h>
 
 struct limine_hhdm_response *hhdm_response = NULL;
 static uint64_t hhdm_offset = 0;
@@ -168,6 +169,75 @@ vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret) {
 	tbl[ idxs[3] ] = 0;
 
 	__asm__ volatile("invlpg (%0)" : : "r"(virt) : "memory");
+
+	return VMM_OK;
+}
+
+static vmm_status_t vmm_rollback(uint64_t phys_pml4, uint64_t virt, uint64_t count) {
+	uint64_t dummy;
+	vmm_status_t st;
+	vmm_status_t result = VMM_OK;
+	for (uint64_t i = 0; i < count; i++) {
+		st = vmm_unmap(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, &dummy);
+		if (st != VMM_OK) {
+			printk(QEMU_SERIAL | EARLY, "[FAIL] unmap in rollback failed at %x with code %d\n",
+			       (uint64_t)virt + i * VMM_PAGE_SIZE_4K, st);
+			if (result == VMM_OK) { result = VMM_ERR_ROLLBACK; }
+		}
+	}
+
+	return result;
+}
+
+/* maps a range of pages of size size. size needs to be 4KiB-aligned in order to work */
+vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags) {
+	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
+		return VMM_ERR_SIZE;
+	}
+
+	if (((virt & (VMM_PAGE_SIZE_4K - 1)) != 0) || ((phys & (VMM_PAGE_SIZE_4K - 1)) != 0)) {
+		return VMM_ERR_NOT_ALIGNED;
+	}
+
+	/* int overflow */
+	if ((size - VMM_PAGE_SIZE_4K) > (UINT64_MAX - virt)) {
+		return VMM_ERR_OVERFLOW;
+	}
+
+	/* bigger than 52 bit */
+	if (phys >= (1ULL << 52) ||
+	        (size - VMM_PAGE_SIZE_4K) >= (1ULL << 52) - phys) {
+		return VMM_ERR_OVERFLOW;
+	}
+
+	uint64_t last = virt + size - VMM_PAGE_SIZE_4K;
+	uint64_t top_first = virt >> 47;
+	uint64_t top_last = last >> 47;
+
+	if ((top_first != 0) && (top_first != 0x1FFFF)) {
+		return VMM_ERR_NON_CANONICAL;
+	}
+
+	if ((top_last != 0) && (top_last != 0x1FFFF)) {
+		return VMM_ERR_NON_CANONICAL;
+	}
+
+	if (top_first != top_last) {
+		return VMM_ERR_NON_CANONICAL;
+	}
+
+	uint64_t pages = size / VMM_PAGE_SIZE_4K;
+
+	for (uint64_t i = 0; i < pages; i++) {
+		vmm_status_t st = vmm_map(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, phys + i * VMM_PAGE_SIZE_4K, flags);
+		if (st != VMM_OK) {
+			vmm_status_t rb = vmm_rollback(phys_pml4, virt, i);
+			if (rb != VMM_OK) {
+				return rb;
+			}
+			return st;
+		}
+	}
 
 	return VMM_OK;
 }

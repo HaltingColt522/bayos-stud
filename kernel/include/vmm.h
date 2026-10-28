@@ -49,6 +49,9 @@ typedef enum {
 	VMM_ERR_ALR_MAPPED = 9,
 	VMM_ERR_NOT_ALIGNED = 10,
 	VMM_ERR_ADDR_FLAGS = 11,
+	VMM_ERR_SIZE = 12,
+	VMM_ERR_OVERFLOW = 13,
+	VMM_ERR_ROLLBACK = 14,
 } vmm_status_t;
 
 
@@ -59,5 +62,7 @@ struct virt_addr_t separate_addr(uint64_t addr);
 vmm_status_t vmm_translate(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
 vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t flags);
 vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
+
+vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags);
 
 #endif // !_VMM_H
