@@ -95,10 +95,6 @@ vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t 
 		return VMM_ERR_ADDR_FLAGS;
 	}
 
-	if ((phys & ~VMM_ADDR_MASK_4K) != 0) {
-		return VMM_ERR_NOT_ALIGNED;
-	}
-
 	struct virt_addr_t sep = separate_addr(virt);
 	uint64_t idxs[4] = {sep.PML4, sep.PDP, sep.PD, sep.PT};
 	uint64_t *tbl = get_table(phys_pml4);
