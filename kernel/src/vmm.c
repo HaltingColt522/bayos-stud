@@ -173,40 +173,43 @@ vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret) {
 	return VMM_OK;
 }
 
-static vmm_status_t vmm_rollback(uint64_t phys_pml4, uint64_t virt, uint64_t count) {
-	uint64_t dummy;
+static vmm_status_t vmm_rollback(uint64_t phys_pml4, uint64_t virt, uint64_t count, uint64_t free_frames) {
+	uint64_t phys;
 	vmm_status_t st;
 	vmm_status_t result = VMM_OK;
+
 	for (uint64_t i = 0; i < count; i++) {
-		st = vmm_unmap(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, &dummy);
+		uint64_t addr = virt + i * VMM_PAGE_SIZE_4K;
+
+		st = vmm_unmap(phys_pml4, addr, &phys);
 		if (st != VMM_OK) {
 			printk(QEMU_SERIAL | EARLY, "[FAIL] unmap in rollback failed at %x with code %d\n",
-			       (uint64_t)virt + i * VMM_PAGE_SIZE_4K, st);
+			       addr, (int)st);
 			if (result == VMM_OK) { result = VMM_ERR_ROLLBACK; }
+			continue;
+		}
+
+		if (free_frames) {
+			pmm_status_t fs = free_frame(ba, phys);
+
+			if (fs != PMM_OK) {
+				printk(QEMU_SERIAL | EARLY, "[FAIL] free_frame in rollback failed at %x with code %d\n",
+				       (uint64_t)phys, (int)fs);
+				if (result == VMM_OK) { result = VMM_ERR_ROLLBACK; }
+			}
 		}
 	}
 
 	return result;
 }
 
-/* maps a range of pages of size size. size needs to be 4KiB-aligned in order to work */
-vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags) {
-	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
-		return VMM_ERR_SIZE;
-	}
-
-	if (((virt & (VMM_PAGE_SIZE_4K - 1)) != 0) || ((phys & (VMM_PAGE_SIZE_4K - 1)) != 0)) {
+static vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size) {
+	if ((virt & (VMM_PAGE_SIZE_4K - 1)) != 0) {
 		return VMM_ERR_NOT_ALIGNED;
 	}
 
 	/* int overflow */
 	if ((size - VMM_PAGE_SIZE_4K) > (UINT64_MAX - virt)) {
-		return VMM_ERR_OVERFLOW;
-	}
-
-	/* bigger than 52 bit */
-	if (phys >= (1ULL << 52) ||
-	        (size - VMM_PAGE_SIZE_4K) >= (1ULL << 52) - phys) {
 		return VMM_ERR_OVERFLOW;
 	}
 
@@ -226,16 +229,138 @@ vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uin
 		return VMM_ERR_NON_CANONICAL;
 	}
 
+	return VMM_OK;
+}
+
+static vmm_status_t vmm_validate_phys_range(uint64_t phys, uint64_t size) {
+	if ((phys & (VMM_PAGE_SIZE_4K - 1)) != 0) {
+		return VMM_ERR_NOT_ALIGNED;
+	}
+
+	/* bigger than 52 bit */
+	if (phys >= (1ULL << 52) ||
+	        (size - VMM_PAGE_SIZE_4K) >= (1ULL << 52) - phys) {
+		return VMM_ERR_OVERFLOW;
+	}
+
+	return VMM_OK;
+}
+
+/* maps a range of pages of size size. size needs to be 4KiB-aligned in order to work
+ * note: number of pages = size / 4096 */
+vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags) {
+	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
+		return VMM_ERR_SIZE;
+	}
+
+	vmm_status_t st = vmm_validate_virt_range(virt, size);
+	if (st != VMM_OK) { return st; }
+	st = vmm_validate_phys_range(phys, size);
+	if (st != VMM_OK) { return st; }
+
 	uint64_t pages = size / VMM_PAGE_SIZE_4K;
 
 	for (uint64_t i = 0; i < pages; i++) {
-		vmm_status_t st = vmm_map(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, phys + i * VMM_PAGE_SIZE_4K, flags);
+		st = vmm_map(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, phys + i * VMM_PAGE_SIZE_4K, flags);
 		if (st != VMM_OK) {
-			vmm_status_t rb = vmm_rollback(phys_pml4, virt, i);
+			vmm_status_t rb = vmm_rollback(phys_pml4, virt, i, 0);
 			if (rb != VMM_OK) {
 				return rb;
 			}
 			return st;
+		}
+	}
+
+	return VMM_OK;
+}
+
+/* unmaps a range of pages; if free_frames is set to != 0, frames will be freed */
+vmm_status_t vmm_unmap_range(uint64_t phys_pml4, uint64_t virt, uint64_t size, uint64_t free_frames) {
+	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
+		return VMM_ERR_SIZE;
+	}
+
+	vmm_status_t st = vmm_validate_virt_range(virt, size);
+	if (st != VMM_OK) { return st; }
+
+	uint64_t pages = size / VMM_PAGE_SIZE_4K;
+
+	vmm_status_t result = VMM_OK;
+	uint64_t phys;
+
+	for (uint64_t i = 0; i < pages; i++) {
+		st = vmm_unmap(phys_pml4, virt + i * VMM_PAGE_SIZE_4K, &phys);
+
+		if (st == VMM_ERR_NOT_MAPPED) { continue; } /* goal achieved, nothing to do */
+		if (st != VMM_OK) {
+			if (result == VMM_OK) { result = st; }
+			continue;
+		}
+
+		if (free_frames) {
+			pmm_status_t fs = free_frame(ba, phys);
+			if (fs != PMM_OK) {
+				if (result == VMM_OK) { result = VMM_ERR_PMM; }
+				printk(QEMU_SERIAL | EARLY, "[FAIL] free_frame %x failed (%d)\n",
+				       (uint64_t)phys, (int)fs);
+			}
+		}
+	}
+
+	return result;
+}
+
+vmm_status_t vmm_copy_range(uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4,
+                            uint64_t dst_virt, uint64_t size, uint64_t flags) {
+	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
+		return VMM_ERR_SIZE;
+	}
+
+	vmm_status_t st = vmm_validate_virt_range(src_virt, size);
+	if (st != VMM_OK) { return st; }
+	st = vmm_validate_virt_range(dst_virt, size);
+	if (st != VMM_OK) { return st; }
+
+	if ((flags & VMM_ADDR_MASK_4K) != 0) {
+		return VMM_ERR_ADDR_FLAGS;
+	}
+
+	if (src_pml4 == dst_pml4) {
+		uint64_t diff = (src_virt < dst_virt) ? (dst_virt - src_virt) : (src_virt - dst_virt);
+		if (diff < size) {
+			return VMM_ERR_OVERLAP;
+		}
+	}
+
+	uint64_t pages = size / VMM_PAGE_SIZE_4K;
+
+	for (uint64_t i = 0; i < pages; i++) {
+		uint64_t src = src_virt + i * VMM_PAGE_SIZE_4K;
+		uint64_t dst = dst_virt + i * VMM_PAGE_SIZE_4K;
+
+		/* resolve src */
+		uint64_t src_phys;
+		st = vmm_translate(src_pml4, src, &src_phys);
+		if (st != VMM_OK) {
+			vmm_status_t rb = vmm_rollback(dst_pml4, dst_virt, i, 1);
+			return (rb != VMM_OK) ? rb : st;
+		}
+
+		/* get dst frame */
+		uint64_t dst_phys = allocate_frame(ba);
+		if (dst_phys == 0) {
+			vmm_status_t rb = vmm_rollback(dst_pml4, dst_virt, i, 1);
+			return (rb != VMM_OK) ? rb : VMM_ERR_OUT_OF_MEM;
+		}
+
+		memcpy((void *)(dst_phys + hhdm_offset), (const void *)(src_phys + hhdm_offset), VMM_PAGE_SIZE_4K);
+
+		/* map dst */
+		st = vmm_map(dst_pml4, dst, dst_phys, flags);
+		if (st != VMM_OK) {
+			free_frame(ba, dst_phys);
+			vmm_status_t rb = vmm_rollback(dst_pml4, dst_virt, i, 1);
+			return (rb != VMM_OK) ? rb : st;
 		}
 	}
 

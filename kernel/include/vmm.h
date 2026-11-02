@@ -52,6 +52,8 @@ typedef enum {
 	VMM_ERR_SIZE = 12,
 	VMM_ERR_OVERFLOW = 13,
 	VMM_ERR_ROLLBACK = 14,
+	VMM_ERR_PMM = 15,
+	VMM_ERR_OVERLAP = 16,
 } vmm_status_t;
 
 
@@ -64,5 +66,7 @@ vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t 
 vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
 
 vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags);
+vmm_status_t vmm_unmap_range(uint64_t phys_pml4, uint64_t virt, uint64_t size, uint64_t free_frames);
 
+vmm_status_t vmm_copy_range(uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4, uint64_t dst_virt, uint64_t size, uint64_t flags);
 #endif // !_VMM_H
