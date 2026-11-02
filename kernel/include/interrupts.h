@@ -11,6 +11,8 @@ typedef struct {
 	uint64_t flags;
 	uint64_t rsp;
 	uint64_t ss;
-} iret_frame_t;
+} __attribute__((packed)) iret_frame_t;
+
+void idt_set_descriptor(uint8_t entry, uint64_t isr, uint8_t flags, uint8_t ist);
 
 #endif // INTERRUPTS_H

@@ -3,6 +3,8 @@
 #include <memory.h>
 #include <stdint.h>
 
+Mutex(bitmap_allocator_t) g_ba;
+
 static inline uint64_t bitmap_bytes_for(uint64_t page_count) {
 	return (page_count + 7) / 8;
 }

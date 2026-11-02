@@ -32,7 +32,7 @@ typedef struct {
 	idt_entry_t *idt;
 } __attribute__((packed)) idtr_t;
 
-static void idt_set_descriptor(uint8_t entry, uint64_t isr, uint8_t flags, uint8_t ist) {
+void idt_set_descriptor(uint8_t entry, uint64_t isr, uint8_t flags, uint8_t ist) {
 	idt[entry].isr_low = isr & 0xffff;
 	idt[entry].kernel_cs = 0x8;
 	idt[entry].ist = ist & 0x7;
