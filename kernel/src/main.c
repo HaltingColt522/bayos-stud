@@ -87,7 +87,6 @@ void _start(void) {
 
 	printk(QEMU_SERIAL | EARLY, "[OK] VMM\n");
 
-	hcf();
 	sched_init();
 	printk(QEMU_SERIAL | EARLY, "[OK] Scheduler\n");
 
