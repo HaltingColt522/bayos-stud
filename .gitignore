@@ -5,3 +5,4 @@ binutils/
 !patches/gcc
 !patches/binutils
 !patches
+./compile_commands.json
