@@ -8,6 +8,7 @@
 #include <gdt.h>
 #include <pmm.h>
 #include <vmm.h>
+#include <kheap.h>
 #include <sched.h>
 #include <pipe.h>
 #include <initramfs.h>
@@ -88,6 +89,15 @@ void _start(void) {
 
 	printk(QEMU_SERIAL | EARLY, "[OK] VMM\n");
 
+	uint64_t pml4;
+	__asm__ volatile("mov %%cr3, %0" : "=r"(pml4) : : "memory");
+	heap_t kheap;
+	if (kheap_init(&frame_allocator, pml4, &kheap) != KHEAP_OK) {
+		printk(QEMU_SERIAL | EARLY, "[FAIL] initialize kheap failed\n");
+		hcf();
+	}
+	printk(QEMU_SERIAL | EARLY, "[OK] HEAP\n");
+
 	sched_init();
 	printk(QEMU_SERIAL | EARLY, "[OK] Scheduler\n");
 
@@ -97,11 +107,13 @@ void _start(void) {
 	// 	... use the frame allocator
 	// 	... NEVER take more than one mutex at once
 	// 	MUTEX_UNLOCK(g_ba);
-	mutex_t mutex_list[2] = {0};
+	mutex_t mutex_list[3] = {0};
 	g_ba.data = &frame_allocator;
 	g_ba.lock = mutex_create(&mutex_list[0]);
 	g_fb.data = &fb;
 	g_fb.lock = mutex_create(&mutex_list[1]);
+	g_kheap.data = &kheap;
+	g_kheap.lock = mutex_create(&mutex_list[2]);
 	printk(QEMU_SERIAL | EARLY, "[OK] Mutexes\n");
 
 	// as soon as the scheduler is started

@@ -62,11 +62,11 @@ extern volatile struct limine_hhdm_request hhdm_request;
 vmm_status_t vmm_init(bitmap_allocator_t *ba);
 struct virt_addr_t separate_addr(uint64_t addr);
 vmm_status_t vmm_translate(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
-vmm_status_t vmm_map(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t flags);
+vmm_status_t vmm_map(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t flags);
 vmm_status_t vmm_unmap(uint64_t phys_pml4, uint64_t virt, uint64_t *phys_ret);
 
-vmm_status_t vmm_map_range(uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags);
-vmm_status_t vmm_unmap_range(uint64_t phys_pml4, uint64_t virt, uint64_t size, uint64_t free_frames);
+vmm_status_t vmm_map_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags);
+vmm_status_t vmm_unmap_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t virt, uint64_t size, uint64_t free_frames);
 
-vmm_status_t vmm_copy_range(uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4, uint64_t dst_virt, uint64_t size, uint64_t flags);
+vmm_status_t vmm_copy_range(bitmap_allocator_t *ba, uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4, uint64_t dst_virt, uint64_t size, uint64_t flags);
 #endif // !_VMM_H

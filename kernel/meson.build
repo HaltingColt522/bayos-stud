@@ -79,6 +79,8 @@ c_srcs = files(
   'src/sched.c',
   'src/sem.c',
   'src/vmm.c',
+  'src/alloc.c',
+  'src/kheap.c',
   'src/initramfs.c',
 )
 
