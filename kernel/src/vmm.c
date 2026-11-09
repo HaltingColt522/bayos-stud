@@ -377,9 +377,5 @@ vmm_status_t vmm_init(bitmap_allocator_t *bitmap_a) {
 	hhdm_response = hhdm_request.response;
 	hhdm_offset = hhdm_response->offset;
 
-	/* for future use */
-	uint64_t cr3;
-	__asm__ volatile("mov %%cr3, %0" : "=r"(cr3) : : "memory");
-
 	return VMM_OK;
 }
