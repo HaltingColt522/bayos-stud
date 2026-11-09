@@ -102,3 +102,4 @@ void framebuffer_init(struct limine_framebuffer *info, framebuffer_t *fb) {
 	fb->buffer = info->address;
 	clear(fb);
 }
+
