@@ -79,6 +79,7 @@ c_srcs = files(
   'src/sched.c',
   'src/sem.c',
   'src/vmm.c',
+  'src/initramfs.c',
 )
 
 nasm_gen = generator(nasm,
