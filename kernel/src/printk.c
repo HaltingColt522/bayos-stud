@@ -18,6 +18,12 @@ static inline void early_putchar(int c) {
 	framebuffer_putchar(default_fb, c);
 }
 
+static inline void fb_putchar(int c) {
+	framebuffer_t *fb = MUTEX_LOCK(g_fb);
+	framebuffer_putchar(fb, c);
+	MUTEX_UNLOCK(g_fb);
+}
+
 static void putchar(printk_output_type_e type, int c) {
 	if (type & QEMU_SERIAL) {
 		qemu_serial_putchar(c);
@@ -25,6 +31,10 @@ static void putchar(printk_output_type_e type, int c) {
 
 	if (type & EARLY) {
 		early_putchar(c);
+	}
+
+	if (type & FB) {
+		fb_putchar(c);
 	}
 }
 

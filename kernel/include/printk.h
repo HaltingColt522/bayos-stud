@@ -7,6 +7,7 @@
 typedef enum {
 	QEMU_SERIAL = 1,
 	EARLY = 2,
+	FB = 4,
 } printk_output_type_e;
 
 int printk(printk_output_type_e type, const char *fmt, ...);

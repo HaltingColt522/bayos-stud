@@ -183,7 +183,7 @@ static vmm_status_t vmm_rollback(uint64_t phys_pml4, uint64_t virt, uint64_t cou
 
 		st = vmm_unmap(phys_pml4, addr, &phys);
 		if (st != VMM_OK) {
-			printk(QEMU_SERIAL | EARLY, "[FAIL] unmap in rollback failed at %x with code %d\n",
+			printk(QEMU_SERIAL | FB, "[FAIL] unmap in rollback failed at %x with code %d\n",
 			       addr, (int)st);
 			if (result == VMM_OK) { result = VMM_ERR_ROLLBACK; }
 			continue;
@@ -193,7 +193,7 @@ static vmm_status_t vmm_rollback(uint64_t phys_pml4, uint64_t virt, uint64_t cou
 			pmm_status_t fs = free_frame(ba, phys);
 
 			if (fs != PMM_OK) {
-				printk(QEMU_SERIAL | EARLY, "[FAIL] free_frame in rollback failed at %x with code %d\n",
+				printk(QEMU_SERIAL | FB, "[FAIL] free_frame in rollback failed at %x with code %d\n",
 				       (uint64_t)phys, (int)fs);
 				if (result == VMM_OK) { result = VMM_ERR_ROLLBACK; }
 			}
@@ -301,7 +301,7 @@ vmm_status_t vmm_unmap_range(uint64_t phys_pml4, uint64_t virt, uint64_t size, u
 			pmm_status_t fs = free_frame(ba, phys);
 			if (fs != PMM_OK) {
 				if (result == VMM_OK) { result = VMM_ERR_PMM; }
-				printk(QEMU_SERIAL | EARLY, "[FAIL] free_frame %x failed (%d)\n",
+				printk(QEMU_SERIAL | FB, "[FAIL] free_frame %x failed (%d)\n",
 				       (uint64_t)phys, (int)fs);
 			}
 		}
