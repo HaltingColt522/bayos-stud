@@ -1,5 +1,5 @@
-#ifndef _VMM_H
-#define _VMM_H
+#ifndef VMM_H
+#define VMM_H
 
 #define VMM_ENTRIES (512)
 
