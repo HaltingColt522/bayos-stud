@@ -172,7 +172,7 @@ void setup_enter_userspace_proc(void) {
 	}
 
 	// configure the iret for userspace
-	enter_ring_3_context.iret.rip = *(init_elf + 0x18);
+	enter_ring_3_context.iret.rip = *(uint64_t*)(init_elf + 0x18);
 	enter_ring_3_context.iret.cs = 0x33;
 	enter_ring_3_context.iret.flags = 0x202;
 	enter_ring_3_context.iret.rsp = USER_PROC_STACK_ADDRESS_UPPER_BOUND;
