@@ -14,6 +14,7 @@
 #include <initramfs.h>
 #include <memory.h>
 #include <io.h>
+#include <syscall.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
@@ -203,13 +204,21 @@ void setup_enter_userspace_proc(void) {
 	// zero out the stack
 	memset((void*)USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE);
 
-	// TODO: map a page for the rtld interface
-	// write an address to itself (on that page)
-	// write it in msr
+	// this is somehow needed for rtdl in mlibc
+	// i dont really know why though
+	ba = MUTEX_LOCK(g_ba);
+	st = vmm_map_range(ba, cr3, 0x1000, 0, 0x1000, VMM_RW | VMM_XD | VMM_US);
+	MUTEX_UNLOCK(g_ba);
+	if (st != VMM_OK) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Failed to prepare init process\n");
+		hcf();
+	}
+	memset((void*)0x1000, 0, 0x1000);
+	*(uint64_t*)0x1000 = 0x1000;
 
 	// TODO: load the elf
 	
-	// TODO: enable the syscall interface
+	syscall_init();
 
 	// finally insert the process
 	insert_process(proc);
