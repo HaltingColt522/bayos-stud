@@ -246,23 +246,46 @@ static vmm_status_t vmm_validate_phys_range(uint64_t phys, uint64_t size) {
 }
 
 /* maps a range of pages of size size. size needs to be 4KiB-aligned in order to work
+ * if phys == 0, frames are allocated automatically
+ * if phys != 0, the range [phys, phys + size) is mapped
  * note: number of pages = size / 4096 */
 vmm_status_t vmm_map_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t virt, uint64_t phys, uint64_t size, uint64_t flags) {
 	if ((size == 0) || ((size % VMM_PAGE_SIZE_4K) != 0)) {
 		return VMM_ERR_SIZE;
 	}
 
+	bool alloc = (phys == 0);
+
 	vmm_status_t st = vmm_validate_virt_range(virt, size);
 	if (st != VMM_OK) { return st; }
-	st = vmm_validate_phys_range(phys, size);
-	if (st != VMM_OK) { return st; }
+	if (!alloc) {
+		st = vmm_validate_phys_range(phys, size);
+		if (st != VMM_OK) { return st; }
+	}
 
 	uint64_t pages = size / VMM_PAGE_SIZE_4K;
 
 	for (uint64_t i = 0; i < pages; i++) {
-		st = vmm_map(ba, phys_pml4, virt + i * VMM_PAGE_SIZE_4K, phys + i * VMM_PAGE_SIZE_4K, flags);
+		uint64_t frame = phys + i * VMM_PAGE_SIZE_4K;
+
+		if (alloc) {
+			frame = allocate_frame(ba);
+			if (frame == 0) {
+				st = VMM_ERR_OUT_OF_MEM;
+			} else {
+				st = VMM_OK;
+			}
+		}
+
+		if (st == VMM_OK) {
+			st = vmm_map(ba, phys_pml4, virt + i * VMM_PAGE_SIZE_4K, frame, flags);
+			if ((st != VMM_OK) && alloc) {
+				free_frame(ba, frame);
+			}
+		}
+
 		if (st != VMM_OK) {
-			vmm_status_t rb = vmm_rollback(ba, phys_pml4, virt, i, 0);
+			vmm_status_t rb = vmm_rollback(ba, phys_pml4, virt, i, alloc ? 1 : 0);
 			if (rb != VMM_OK) {
 				return rb;
 			}

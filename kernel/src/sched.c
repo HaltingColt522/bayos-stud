@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <io.h>
 #include <limine.h>
+#include <printk.h>
 
 // globals
 // only modified with functions for it
@@ -150,4 +151,17 @@ process_t *get_current_process(void) {
 	irqrestore(flags);
 
 	return proc;
+}
+
+static uint32_t _next_pid = 1;
+int get_unique_pid(void) {
+	int pid = (int)__atomic_fetch_add(
+		&_next_pid,
+		1,
+		__ATOMIC_SEQ_CST
+	);
+
+	printk(QEMU_SERIAL, "New Pid: %d\n", pid);
+
+	return pid;
 }
