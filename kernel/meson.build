@@ -82,6 +82,7 @@ c_srcs = files(
   'src/alloc.c',
   'src/kheap.c',
   'src/initramfs.c',
+  'src/elf.c',
 )
 
 nasm_gen = generator(nasm,

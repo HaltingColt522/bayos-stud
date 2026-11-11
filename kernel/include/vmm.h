@@ -24,6 +24,8 @@
 #define VMM_ADDR_MASK_2M (0x000fffffffe00000ULL)
 #define VMM_ADDR_MASK_1G (0x000fffffc0000000ULL)
 
+#define VMM_LOWER_HALF_END 0x0000800000000000ULL
+
 #include <stdint.h>
 #include <pmm.h>
 #include <limine.h>
@@ -69,4 +71,6 @@ vmm_status_t vmm_map_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t 
 vmm_status_t vmm_unmap_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t virt, uint64_t size, uint64_t free_frames);
 
 vmm_status_t vmm_copy_range(bitmap_allocator_t *ba, uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4, uint64_t dst_virt, uint64_t size, uint64_t flags);
+vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size);
+
 #endif // !_VMM_H
