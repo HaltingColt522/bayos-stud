@@ -15,18 +15,9 @@ kheap_status_t kheap_init(bitmap_allocator_t *ba, uint64_t pml4, heap_t *kheap) 
 	pml4 = pml4 & VMM_ADDR_MASK_4K;
 	uint64_t pages = KHEAP_SIZE / VMM_PAGE_SIZE_4K;
 
-	for (uint64_t i = 0; i < pages; i++) {
-		uint64_t frame = allocate_frame(ba);
-		if (frame == 0) {
-			kheap_rollback(ba, pml4, i);
-			return KHEAP_ERR_PMM;
-		}
-
-		if (vmm_map(ba, pml4, KHEAP_BASE + i * VMM_PAGE_SIZE_4K, frame, VMM_RW | VMM_XD) != VMM_OK) {
-			free_frame(ba, frame);
-			kheap_rollback(ba, pml4, i);
-			return KHEAP_ERR_VMM;
-		}
+	vmm_status_t st = vmm_map_range(ba, pml4, KHEAP_BASE, 0, KHEAP_SIZE, VMM_RW | VMM_XD);
+	if (st != VMM_OK) {
+		return (st == VMM_ERR_OUT_OF_MEM) ? KHEAP_ERR_PMM : KHEAP_ERR_VMM;
 	}
 
 	if (heap_init(kheap, (uint8_t *)KHEAP_BASE, KHEAP_SIZE) != HEAP_OK) {
