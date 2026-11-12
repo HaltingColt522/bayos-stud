@@ -84,6 +84,7 @@ c_srcs = files(
   'src/initramfs.c',
   'src/elf.c',
   'src/syscall.c',
+  'src/fpu.c',
 )
 
 nasm_gen = generator(nasm,

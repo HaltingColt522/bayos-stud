@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <fpu.h>
 #include <stdbool.h>
 #include <limine.h>
 #include <framebuffer.h>
@@ -125,6 +126,9 @@ void _start(void) {
 	g_kheap.data = &kheap;
 	g_kheap.lock = mutex_create(&mutex_list[2]);
 	printk(QEMU_SERIAL | EARLY, "[OK] Mutexes\n");
+
+	fpu_init();
+	printk(QEMU_SERIAL | EARLY, "[OK] FPU\n");
 
 	// as soon as the scheduler is started
 	// we should only use the global version of things

@@ -38,6 +38,8 @@ typedef struct process_t {
 	process_status_e status;
 	cpu_status_t *context;
 
+	uint8_t fpu_state[512] __attribute__((aligned(16)));
+
 	struct process_t *next;
 	struct process_t *wait_next;
 

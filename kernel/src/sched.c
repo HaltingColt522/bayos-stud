@@ -93,6 +93,7 @@ void sched_init(void) {
 // NOTE: this runs with interrupts disabled
 //
 cpu_status_t *schedule(cpu_status_t *context) {
+	process_t *old_process = current_process;
 	current_process->context = context;
 	if (current_process->status != DEAD && current_process->status != BLOCKED) {
 		current_process->status = READY;
@@ -114,6 +115,11 @@ cpu_status_t *schedule(cpu_status_t *context) {
 			current_process->status = RUNNING;
 			break;
 		}
+	}
+
+	if (current_process != old_process) {
+		asm volatile("fxsave64 %0"  : "=m"(old_process->fpu_state) :: "memory");
+		asm volatile("fxrstor64 %0" :: "m"(current_process->fpu_state) : "memory");
 	}
 
 	return current_process->context;
