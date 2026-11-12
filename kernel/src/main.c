@@ -12,6 +12,7 @@
 #include <sched.h>
 #include <pipe.h>
 #include <initramfs.h>
+#include <elf.h>
 #include <memory.h>
 #include <io.h>
 #include <syscall.h>

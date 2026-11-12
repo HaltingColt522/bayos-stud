@@ -1,5 +1,5 @@
-#ifndef _KHEAP_H
-#define _KHEAP_H
+#ifndef KHEAP_H
+#define KHEAP_H
 
 /* index 384 in PML4, should be free, far enough away from HHDM and kernel */
 #define KHEAP_BASE 0xFFFFC00000000000

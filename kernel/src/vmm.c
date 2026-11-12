@@ -202,7 +202,7 @@ static vmm_status_t vmm_rollback(bitmap_allocator_t *ba, uint64_t phys_pml4, uin
 	return result;
 }
 
-static vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size) {
+vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size) {
 	if ((virt & (VMM_PAGE_SIZE_4K - 1)) != 0) {
 		return VMM_ERR_NOT_ALIGNED;
 	}
