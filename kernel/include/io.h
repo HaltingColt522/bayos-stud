@@ -13,4 +13,7 @@ void irqrestore(unsigned long flags);
 void write_cr3(unsigned long long value);
 uint64_t read_cr3(void);
 
+void wrmsr(uint32_t msr, uint64_t value);
+uint64_t rdmsr(uint32_t msr);
+
 #endif // IO_H

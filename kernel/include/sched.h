@@ -63,4 +63,11 @@ void mark_current_proc_as_dead(void);
 // process
 process_t *get_current_process(void);
 
+// generates a unique pid
+int get_unique_pid(void);
+
+#define USER_PROC_STACK_SIZE (0x200000)
+#define USER_PROC_STACK_ADDRESS_UPPER_BOUND (0x7fffffffe000)
+#define USER_PROC_STACK_ADDRESS_LOWER_BOUND (USER_PROC_STACK_ADDRESS_UPPER_BOUND - USER_PROC_STACK_SIZE)
+
 #endif // SCHED_H

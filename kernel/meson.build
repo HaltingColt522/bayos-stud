@@ -83,6 +83,7 @@ c_srcs = files(
   'src/kheap.c',
   'src/initramfs.c',
   'src/elf.c',
+  'src/syscall.c',
 )
 
 nasm_gen = generator(nasm,

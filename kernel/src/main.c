@@ -13,6 +13,9 @@
 #include <pipe.h>
 #include <initramfs.h>
 #include <elf.h>
+#include <memory.h>
+#include <io.h>
+#include <syscall.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
@@ -45,6 +48,12 @@ static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARK
 static void hcf(void) {
 	asm("cli; hlt");
 }
+
+// this function sets up the syscall interface
+// sets up the memory for the userspace program
+// , loads it into the, address space, switches cpu to ring 3
+// and jumps to the entry (the process becomes the init process)
+void setup_enter_userspace_proc(void);
 
 void _start(void) {
 	if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
@@ -125,9 +134,98 @@ void _start(void) {
 	// this line starts the scheduler
 	asm volatile("sti");
 
+	setup_enter_userspace_proc();
+
 	for (;;)
 		// since we have no use for our timeslice, just yield
 	{
 		yield();
 	}
+
+	hcf();
+	__builtin_unreachable();
+}
+
+void setup_enter_userspace_proc(void) {
+	// first we need to create the process
+	process_t *proc = kmalloc(sizeof(process_t));
+	if (!proc) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Failed to allocate init process struct\n");
+		hcf();
+	}
+
+	memset(proc, 0, sizeof(process_t));
+
+	// we need a cpu context to enter ring 3
+	cpu_status_t enter_ring_3_context = { 0 };
+
+	// fill the process struct
+	proc->status = READY;
+	// this should be one, since its the first pid we generate
+	proc->pid = get_unique_pid();
+	proc->kernel_stack = NULL;
+
+	// find the elf file
+	uint8_t *init_elf;
+	int _init_elf_size = initramfs_lookup("/usr/bin/init", &init_elf);
+	if (!init_elf) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Initramfs does not contain init process\n");
+		hcf();
+	}
+
+	// configure the iret for userspace
+	enter_ring_3_context.iret.rip = *(uint64_t*)(init_elf + 0x18);
+	enter_ring_3_context.iret.cs = 0x33;
+	enter_ring_3_context.iret.flags = 0x202;
+	enter_ring_3_context.iret.rsp = USER_PROC_STACK_ADDRESS_UPPER_BOUND;
+	enter_ring_3_context.iret.ss = 0x2b;
+
+	// write it into the proc struct
+	proc->context = &enter_ring_3_context;
+
+	// the init process gets our current address space
+	// this also means it can never stop. otherwise we could not have an
+	// address space anymore
+	uint64_t cr3 = read_cr3();
+	proc->cr3 = cr3;
+
+	// before we add our process we need to set up the address space
+	// for the init process
+	cr3 &= VMM_ADDR_MASK_4K;
+
+	// first allocate the stack
+	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	vmm_status_t st = vmm_map_range(ba, cr3, USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE, VMM_RW | VMM_XD | VMM_US);
+	MUTEX_UNLOCK(g_ba);
+	if (st != VMM_OK) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Failed to map init process stack\n");
+		hcf();
+	}
+
+	// zero out the stack
+	memset((void*)USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE);
+
+	// this is somehow needed for rtdl in mlibc
+	// i dont really know why though
+	ba = MUTEX_LOCK(g_ba);
+	st = vmm_map_range(ba, cr3, 0x1000, 0, 0x1000, VMM_RW | VMM_XD | VMM_US);
+	MUTEX_UNLOCK(g_ba);
+	if (st != VMM_OK) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Failed to prepare init process\n");
+		hcf();
+	}
+	memset((void*)0x1000, 0, 0x1000);
+	*(uint64_t*)0x1000 = 0x1000;
+
+	// TODO: load the elf
+	
+	syscall_init();
+
+	// finally insert the process
+	insert_process(proc);
+	// the process is guaranteed to be behind us in the schedule list
+	// we yield now to keep the stack
+	// the new process will be scheduled before this stack is lost
+	// we have to do this to keep the context valid
+	yield();
 }

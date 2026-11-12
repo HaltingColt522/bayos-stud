@@ -1,6 +1,8 @@
 extern schedule
 extern get_current_process
 
+extern syscall_handler
+
 global timer_int_handler
 timer_int_handler:
 	; acknowledge the interrupt
@@ -69,3 +71,37 @@ __cr3_equal:
 
 	; return to the context we just selected
 	iretq
+
+global _syscall_handler
+_syscall_handler:
+	sti
+
+	push rbp
+	push r15
+	push r14
+	push r13
+	push r12
+	push r11
+	push rcx
+
+	push r9
+	mov r9, r8
+	mov r8, r10
+	mov rcx, rdx
+	mov rdx, rsi
+	mov rsi, rdi
+	mov rdi, rax
+
+	call syscall_handler
+
+	pop r9
+
+	pop rcx
+	pop r11
+	pop r12
+	pop r13
+	pop r14
+	pop r15
+	pop rbp
+
+	o64 sysret
