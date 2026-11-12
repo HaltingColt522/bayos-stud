@@ -49,8 +49,7 @@ static elf_status_t elf_validate_segment(elf64_phdr_entry *ph, uint64_t elf_size
 }
 
 static uint64_t elf_seg_flags(elf64_phdr_entry *ph) {
-	/* TODO: set USER flags once we enter userspace */
-	uint64_t flags = 0;
+	uint64_t flags = 0 | VMM_US;
 
 	if (ph->flags & PF_W) { flags |= VMM_RW; } /*if segment is alr writable, set VMM_RW */
 	if (!(ph->flags & PF_X)) { flags |= VMM_XD; }

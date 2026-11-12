@@ -167,21 +167,11 @@ void setup_enter_userspace_proc(void) {
 
 	// find the elf file
 	uint8_t *init_elf;
-	int _init_elf_size = initramfs_lookup("/usr/bin/init", &init_elf);
+	int init_elf_size = initramfs_lookup("/usr/bin/init", &init_elf);
 	if (!init_elf) {
 		printk(QEMU_SERIAL | FB, "[FAIL] Initramfs does not contain init process\n");
 		hcf();
 	}
-
-	// configure the iret for userspace
-	enter_ring_3_context.iret.rip = *(uint64_t*)(init_elf + 0x18);
-	enter_ring_3_context.iret.cs = 0x33;
-	enter_ring_3_context.iret.flags = 0x202;
-	enter_ring_3_context.iret.rsp = USER_PROC_STACK_ADDRESS_UPPER_BOUND;
-	enter_ring_3_context.iret.ss = 0x2b;
-
-	// write it into the proc struct
-	proc->context = &enter_ring_3_context;
 
 	// the init process gets our current address space
 	// this also means it can never stop. otherwise we could not have an
@@ -193,8 +183,28 @@ void setup_enter_userspace_proc(void) {
 	// for the init process
 	cr3 &= VMM_ADDR_MASK_4K;
 
-	// first allocate the stack
+	uint64_t elf_entry;
 	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	elf_status_t e_st = elf_load(ba, cr3, init_elf, init_elf_size, &elf_entry);
+	MUTEX_UNLOCK(g_ba);
+
+	if (e_st != ELF_OK) {
+		printk(QEMU_SERIAL | FB, "[Fail] Could not load init process into memory\n");
+		hcf();
+	}
+
+	// configure the iret for userspace
+	enter_ring_3_context.iret.rip = elf_entry;
+	enter_ring_3_context.iret.cs = 0x33;
+	enter_ring_3_context.iret.flags = 0x202;
+	enter_ring_3_context.iret.rsp = USER_PROC_STACK_ADDRESS_UPPER_BOUND;
+	enter_ring_3_context.iret.ss = 0x2b;
+
+	// write it into the proc struct
+	proc->context = &enter_ring_3_context;
+
+	// first allocate the stack
+	ba = MUTEX_LOCK(g_ba);
 	vmm_status_t st = vmm_map_range(ba, cr3, USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE, VMM_RW | VMM_XD | VMM_US);
 	MUTEX_UNLOCK(g_ba);
 	if (st != VMM_OK) {
@@ -217,8 +227,6 @@ void setup_enter_userspace_proc(void) {
 	memset((void*)0x1000, 0, 0x1000);
 	*(uint64_t*)0x1000 = 0x1000;
 
-	// TODO: load the elf
-	
 	syscall_init();
 
 	// finally insert the process
