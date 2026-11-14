@@ -15,18 +15,18 @@ void syscall_init(void) {
 	// enable syscall / sysret on cpu
 	wrmsr(0xC0000080, rdmsr(0xC0000080) | 1);
 	// set the kernel and user code and data selector
-	wrmsr(0xC0000081, (0x8 << 32) | (0x20 << 48));
+	wrmsr(0xC0000081, (0x8ULL << 32) | (0x20ULL << 48));
 	// set the syscall entry address
 	wrmsr(0xC0000082, (uint64_t)&_syscall_handler);
 	// clear these RLFLAGS bits on syscall entry
 	// TF, IF, DF, AC
 	wrmsr(0xC0000084, (1 << 9) | (1 << 10) | (1 << 8) | (1 << 18));
 
-	// set fsbase and gsbase to 0x1000
+	// set fsbase and gsbase to 0x2000
 	// this is somehow needed by mlibc
 	// for rtdl
-	wrmsr(0xC0000100, 0x1000);
-	wrmsr(0xC0000101, 0x1000);
+	wrmsr(0xC0000100, 0x2000);
+	wrmsr(0xC0000101, 0x2000);
 }
 
 errno_t vmm_to_errno(vmm_status_t st) {

@@ -224,14 +224,14 @@ void setup_enter_userspace_proc(void) {
 	// this is somehow needed for rtdl in mlibc
 	// i dont really know why though
 	ba = MUTEX_LOCK(g_ba);
-	st = vmm_map_range(ba, cr3, 0x1000, 0, 0x1000, VMM_RW | VMM_XD | VMM_US);
+	st = vmm_map_range(ba, cr3, 0x1000, 0, 0x2000, VMM_RW | VMM_XD | VMM_US);
 	MUTEX_UNLOCK(g_ba);
 	if (st != VMM_OK) {
 		printk(QEMU_SERIAL | FB, "[FAIL] Failed to prepare init process\n");
 		hcf();
 	}
-	memset((void *)0x1000, 0, 0x1000);
-	*(uint64_t *)0x1000 = 0x1000;
+	memset((void *)0x1000, 0, 0x2000);
+	*(uint64_t *)0x2000 = 0x2000;
 
 	syscall_init();
 
