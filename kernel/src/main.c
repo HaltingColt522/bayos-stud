@@ -168,6 +168,8 @@ void setup_enter_userspace_proc(void) {
 	// this should be one, since its the first pid we generate
 	proc->pid = get_unique_pid();
 	proc->kernel_stack = NULL;
+	proc->mmap_next = USER_MMAP_BASE;
+	proc->anon_head = NULL;
 
 	// find the elf file
 	uint8_t *init_elf;
@@ -217,7 +219,7 @@ void setup_enter_userspace_proc(void) {
 	}
 
 	// zero out the stack
-	memset((void*)USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE);
+	memset((void *)USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE);
 
 	// this is somehow needed for rtdl in mlibc
 	// i dont really know why though
@@ -228,8 +230,8 @@ void setup_enter_userspace_proc(void) {
 		printk(QEMU_SERIAL | FB, "[FAIL] Failed to prepare init process\n");
 		hcf();
 	}
-	memset((void*)0x1000, 0, 0x1000);
-	*(uint64_t*)0x1000 = 0x1000;
+	memset((void *)0x1000, 0, 0x1000);
+	*(uint64_t *)0x1000 = 0x1000;
 
 	syscall_init();
 

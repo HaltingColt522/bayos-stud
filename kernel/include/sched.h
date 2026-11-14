@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <interrupts.h>
 
+#define USER_MMAP_BASE 0x100000000000ULL
+
 void sched_init(void);
 
 typedef enum {
@@ -33,6 +35,12 @@ typedef struct {
 	iret_frame_t iret;
 } __attribute__((packed)) cpu_status_t;
 
+typedef struct anon_block {
+	uintptr_t start;
+	uint64_t len;
+	struct anon_block *next;
+} anon_block_t;
+
 typedef struct process_t {
 	uint64_t cr3;
 	process_status_e status;
@@ -49,6 +57,8 @@ typedef struct process_t {
 	uint8_t *kernel_stack;
 
 	// user space exclusive members
+	uintptr_t mmap_next;
+	anon_block_t *anon_head;
 } process_t;
 
 // yield control to scheduler

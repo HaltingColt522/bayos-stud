@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <memory.h>
 #include <printk.h>
+#include <stdbool.h>
 
 struct limine_hhdm_response *hhdm_response = NULL;
 static uint64_t hhdm_offset = 0;
@@ -273,6 +274,7 @@ vmm_status_t vmm_map_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_t 
 			if (frame == 0) {
 				st = VMM_ERR_OUT_OF_MEM;
 			} else {
+				memset((void *)(frame + hhdm_offset), 0, VMM_PAGE_SIZE_4K);
 				st = VMM_OK;
 			}
 		}
