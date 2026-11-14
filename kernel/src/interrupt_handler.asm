@@ -12,10 +12,6 @@ timer_int_handler:
 	pop rax
 
 	; store all registers on stack
-	; TODO: also store xmm registers on the user stack
-	; otherwise user space programs which use these registers
-	; wont work properly
-	; -> for now compile user space with -mgeneral-regs-only too
 	push rax
 	push rbx
 	push rcx

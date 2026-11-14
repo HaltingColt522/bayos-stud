@@ -1,6 +1,6 @@
 #include <gdt.h>
 
-static uint8_t kernel_stack[1024] __attribute__((aligned(16)));
+static uint8_t kernel_stack[0x1000] __attribute__((aligned(16)));
 // the stack used when interrupts happen in ring 3
 static uint8_t interrupt_stack[0x1000] __attribute__((aligned(16)));
 

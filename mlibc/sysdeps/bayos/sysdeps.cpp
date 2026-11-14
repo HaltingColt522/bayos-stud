@@ -4,6 +4,7 @@
 #include <bits/syscall.h>
 #include <mlibc/all-sysdeps.hpp>
 #include <string.h>
+#include <stdint.h>
 
 #define STUB()                                                                                     \
     ({                                                                                             \
@@ -16,6 +17,7 @@
 #define SYS_WRITE 1
 #define SYS_ANON_ALLOCATE 2
 #define SYS_EXIT 3
+#define SYS_ANON_FREE 4
 
 namespace mlibc {
 
@@ -45,6 +47,8 @@ namespace mlibc {
     }
 
     [[noreturn]] void sys_exit(int) {
+    // we dont have this yet
+        for (;;);
         syscall(SYS_EXIT);
     }
 
@@ -81,10 +85,22 @@ namespace mlibc {
         __builtin_trap();
     }
 
-    int sys_anon_free(void*, unsigned long) { return 0; }
+    int sys_anon_free(void* ptr, unsigned long size) {
+		/* could be return syscall(...) but im too lazy to change rn */
+		auto result = syscall(SYS_ANON_FREE, (uint64_t)ptr, size);
+		if (result != 0) {
+			return result;
+		}
+
+		return 0;
+	}
 
     int sys_anon_allocate(unsigned long size, void** ptr) { 
-        auto result = syscall(SYS_ANON_ALLOCATE, size, ptr); 
-        return 0;
+        auto result = syscall(SYS_ANON_ALLOCATE, size, (uint64_t)ptr);
+        if (result != 0) {
+			return result;
+		}
+
+		return 0;
     }
 }
