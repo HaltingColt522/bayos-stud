@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <sem.h>
 
-typedef struct {
+typedef struct pipe_t {
 	uint8_t *buffer;
 	uint64_t buffer_len;
 

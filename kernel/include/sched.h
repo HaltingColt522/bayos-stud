@@ -6,6 +6,9 @@
 
 #define USER_MMAP_BASE 0x100000000000ULL
 
+#define MAX_FDS		0x10
+#define STDIN_FD	0x0
+
 void sched_init(void);
 
 typedef enum {
@@ -41,6 +44,10 @@ typedef struct anon_block {
 	struct anon_block *next;
 } anon_block_t;
 
+/* since pipe.h cannot be included (due to circular inclution), we need a lil
+ * workaround */
+typedef struct pipe_t pipe_t;
+
 typedef struct process_t {
 	uint64_t cr3;
 	process_status_e status;
@@ -59,6 +66,8 @@ typedef struct process_t {
 	// user space exclusive members
 	uintptr_t mmap_next;
 	anon_block_t *anon_head;
+
+	pipe_t *fds[MAX_FDS];
 } process_t;
 
 // yield control to scheduler

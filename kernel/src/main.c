@@ -174,6 +174,7 @@ void setup_enter_userspace_proc(void) {
 	proc->kernel_stack = NULL;
 	proc->mmap_next = USER_MMAP_BASE;
 	proc->anon_head = NULL;
+	proc->fds[STDIN_FD] = &kb_pipe;
 
 	// find the elf file
 	uint8_t *init_elf;
