@@ -85,6 +85,7 @@ c_srcs = files(
   'src/elf.c',
   'src/syscall.c',
   'src/fpu.c',
+  'src/keyboard.c',
 )
 
 nasm_gen = generator(nasm,

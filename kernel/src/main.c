@@ -17,6 +17,7 @@
 #include <memory.h>
 #include <io.h>
 #include <syscall.h>
+#include <keyboard.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
@@ -112,6 +113,9 @@ void _start(void) {
 	sched_init();
 	printk(QEMU_SERIAL | EARLY, "[OK] Scheduler\n");
 
+	keyboard_init();
+	printk(QEMU_SERIAL | EARLY, "[OK] Keyboard\n");
+
 	// this is where mutexes for global variables are created
 	// mutexes are used like so: (example for bitmap_allocator)
 	// 	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
@@ -170,6 +174,7 @@ void setup_enter_userspace_proc(void) {
 	proc->kernel_stack = NULL;
 	proc->mmap_next = USER_MMAP_BASE;
 	proc->anon_head = NULL;
+	proc->fds[STDIN_FD] = &kb_pipe;
 
 	// find the elf file
 	uint8_t *init_elf;
