@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <sched.h>
 #include <kheap.h>
+#include <memory.h>
 
 extern void _syscall_handler;
 
@@ -45,10 +46,19 @@ errno_t vmm_to_errno(vmm_status_t st) {
 bool is_user_ptr(uintptr_t ptr, uint64_t len) {
 	if (ptr == 0) { return false; }
 	if (len > VMM_LOWER_HALF_END - ptr) { return false; }
+	if (ptr >= VMM_LOWER_HALF_END) { return false; }
 	return true;
 }
 
-static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len);
+bool user_range_ok(uint64_t cr3, uint64_t ptr, uint64_t len) {
+	if (!is_user_ptr(ptr, len)) { return false; }
+	uint64_t phys;
+	if (vmm_translate(cr3, ptr, &phys) != VMM_OK) { return false; }
+	if (vmm_translate(cr3, ptr + len - 1, &phys) != VMM_OK) { return false; }
+	return true;
+}
+
+static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len, size_t *out);
 static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len);
 static uint64_t anon_allocate_syscall(size_t size, uint64_t *dk);
 static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size);
@@ -58,7 +68,7 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 	case 0:
 		return read_syscall(arg0, (uint8_t *)arg1, arg2);
 	case 1:
-		return write_syscall(arg0, (uint8_t *)arg1, arg2);
+		return write_syscall(arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
 	case 2:
 		return anon_allocate_syscall(arg0, (uint64_t *)arg1);
 	case 4:
@@ -69,9 +79,39 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 	}
 }
 
-static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len) {
-	printk(QEMU_SERIAL, "Write syscall not implemented\n");
-	return -1;
+static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len, size_t *out) {
+	process_t *proc = get_current_process();
+
+	if (proc == NULL) { return EFAULT; }
+	if (fd >= MAX_FDS) { return EBADF; }
+
+	file_t *file = proc->fds[fd];
+	if ((file == NULL) || (file->ops == NULL) || (file->ops->write == NULL)) { return EBADF; }
+
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+	if (!user_range_ok(cr3, (uint64_t)out, sizeof(*out))) { return EFAULT; }
+	if (len == 0) { *out = 0; return 0; }
+	if (!is_user_ptr((uint64_t)buf, len)) { return EFAULT; }
+
+	uint64_t total = 0;
+	errno_t err = 0;
+
+	uint8_t kbuf[WRITE_CHUNK];
+
+	while (total < len) {
+		uint64_t chunk = (len - total < WRITE_CHUNK) ? (len - total) : WRITE_CHUNK;
+		if (!user_range_ok(cr3, (uint64_t)buf + total, chunk)) { err = EFAULT; break; }
+		memcpy(kbuf, buf + total, chunk);
+		int64_t n = file->ops->write(file, kbuf, chunk);
+		if (n < 0) { err = -n; break; }
+		total += n;
+		if ((uint64_t)n < chunk) { break; }
+	}
+
+	if ((total == 0) && (err != 0)) { return err; }
+	*out = total;
+
+	return 0;
 }
 
 static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len) {

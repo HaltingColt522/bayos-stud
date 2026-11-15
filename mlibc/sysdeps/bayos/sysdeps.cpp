@@ -22,13 +22,12 @@
 namespace mlibc {
 
     int sys_write(int fd, const void *buffer, size_t count, ssize_t *written) {
-        auto result = syscall(SYS_WRITE, fd, buffer, count);
+        auto result = syscall(SYS_WRITE, fd, buffer, count, (uint64_t)written);
 
-        if (result < 0) {
-            return -result;
+        if (result != 0) {
+            return result;
         }
     
-        *written = count;
         return 0;
     }
 

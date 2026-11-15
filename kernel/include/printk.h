@@ -12,6 +12,8 @@ typedef enum {
 
 int printk(printk_output_type_e type, const char *fmt, ...);
 
+void printk_raw(printk_output_type_e type, const uint8_t *buf, uint64_t len);
+
 void early_printk_init(framebuffer_t *fb);
 
 #endif // PRINTK_H

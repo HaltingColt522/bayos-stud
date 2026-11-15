@@ -3,11 +3,15 @@
 
 #include <stdint.h>
 #include <interrupts.h>
+#include <file_desc.h>
 
 #define USER_MMAP_BASE 0x100000000000ULL
 
 #define MAX_FDS		0x10
-#define STDIN_FD	0x0
+#define FD_STDIN	0x0
+#define FD_STDOUT	0x1
+/* for future use */
+#define FD_STDERR	0x2
 
 void sched_init(void);
 
@@ -44,10 +48,6 @@ typedef struct anon_block {
 	struct anon_block *next;
 } anon_block_t;
 
-/* since pipe.h cannot be included (due to circular inclution), we need a lil
- * workaround */
-typedef struct pipe_t pipe_t;
-
 typedef struct process_t {
 	uint64_t cr3;
 	process_status_e status;
@@ -67,7 +67,7 @@ typedef struct process_t {
 	uintptr_t mmap_next;
 	anon_block_t *anon_head;
 
-	pipe_t *fds[MAX_FDS];
+	file_t *fds[MAX_FDS];
 } process_t;
 
 // yield control to scheduler
