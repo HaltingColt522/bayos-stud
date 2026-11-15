@@ -218,9 +218,6 @@ void setup_enter_userspace_proc(void) {
 		hcf();
 	}
 
-	// zero out the stack
-	memset((void *)USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE);
-
 	// this is somehow needed for rtdl in mlibc
 	// i dont really know why though
 	ba = MUTEX_LOCK(g_ba);
@@ -230,7 +227,6 @@ void setup_enter_userspace_proc(void) {
 		printk(QEMU_SERIAL | FB, "[FAIL] Failed to prepare init process\n");
 		hcf();
 	}
-	memset((void *)0x1000, 0, 0x2000);
 	*(uint64_t *)0x2000 = 0x2000;
 
 	syscall_init();
