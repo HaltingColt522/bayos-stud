@@ -69,8 +69,6 @@ typedef struct process_t {
 
 	file_t *fds[MAX_FDS];
 	int ret_value;
-
-	pipe_t *fds[MAX_FDS];
 } process_t;
 
 // yield control to scheduler
