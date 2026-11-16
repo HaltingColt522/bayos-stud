@@ -1,7 +1,8 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#define WRITE_CHUNK 256
+#define WRITE_CHUNK	256
+#define READ_CHUNK	256
 
 void syscall_init(void);
 

@@ -4,6 +4,7 @@
 #include <printk.h>
 #include <errno.h>
 #include <stddef.h>
+#include <keyboard.h>
 
 static int64_t console_write(file_t *f, const uint8_t *buf, uint64_t len) {
 	printk_raw(QEMU_SERIAL | FB, buf, len);
@@ -11,7 +12,7 @@ static int64_t console_write(file_t *f, const uint8_t *buf, uint64_t len) {
 }
 
 static int64_t console_read(file_t *f, uint8_t *buf, uint64_t len) {
-	return -EIO;
+	return pipe_read(&kb_pipe, buf, len);
 }
 
 static const file_ops_t console_ops = {

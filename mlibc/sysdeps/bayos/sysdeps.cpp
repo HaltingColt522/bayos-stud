@@ -34,14 +34,13 @@ namespace mlibc {
     int sys_isatty(int) { return 0; }
 
     int sys_read(int fd, void *buf, size_t count, ssize_t *bytes_read) {
-        auto result = syscall(SYS_READ, fd, buf, count);
+        auto result = syscall(SYS_READ, fd, buf, count, (uint64_t)bytes_read);
     
         if (result < 0) {
             *bytes_read = 0;
             return -result;
         }
     
-        *bytes_read = result;
         return 0;
     }
 
