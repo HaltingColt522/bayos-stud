@@ -67,6 +67,8 @@ typedef struct process_t {
 	uintptr_t mmap_next;
 	anon_block_t *anon_head;
 
+	int ret_value;
+
 	pipe_t *fds[MAX_FDS];
 } process_t;
 
@@ -76,6 +78,8 @@ void yield(void);
 
 // add process to the process list
 void insert_process(process_t *p);
+// remove a process from the list
+void remove_process_from_list(process_t *proc);
 // mark process ready for deletion
 // should only be called after all resources were freed
 void mark_current_proc_as_dead(void);
@@ -83,6 +87,8 @@ void mark_current_proc_as_dead(void);
 // returns the pointer to the currently active
 // process
 process_t *get_current_process(void);
+// returns a pointer to the process with pid
+process_t *get_process_from_pid(int);
 
 // generates a unique pid
 int get_unique_pid(void);

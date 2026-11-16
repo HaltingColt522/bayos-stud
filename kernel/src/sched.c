@@ -171,3 +171,44 @@ int get_unique_pid(void) {
 
 	return pid;
 }
+
+void remove_process_from_list(process_t *p)
+{
+	if (p == nullptr || process_list == nullptr)
+		return;
+
+	if (process_list == p) {
+		process_list = process_list->next;
+		p->next = nullptr;
+		return;
+	}
+
+	process_t *current = process_list;
+
+	while (current->next != nullptr) {
+		if (current->next == p) {
+			current->next = p->next;
+			p->next = nullptr;
+			return;
+		}
+
+		current = current->next;
+	}
+}
+
+process_t *get_process_from_pid(int pid) {
+	unsigned long flags = save_irqdisable();
+
+	process_t *curr = process_list;
+	while (curr != NULL) {
+		if (curr->pid == pid) {
+			irqrestore(flags);
+			return curr;
+		}
+
+		curr = curr->next;
+	}
+
+	irqrestore(flags);
+	return NULL;
+}

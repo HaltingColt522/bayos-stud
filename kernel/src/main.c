@@ -178,6 +178,7 @@ void setup_enter_userspace_proc(void) {
 
 	// find the elf file
 	uint8_t *init_elf;
+
 	int init_elf_size = initramfs_lookup("/usr/bin/init", &init_elf);
 	if (!init_elf) {
 		printk(QEMU_SERIAL | FB, "[FAIL] Initramfs does not contain init process\n");
