@@ -48,16 +48,17 @@ rebuild-kernel:
 	$(MAKE) clean-kernel
 	$(MAKE) kernel
 
-rebuild:
-	$(MAKE) rebuild-mlibc
-	$(MAKE) rebuild-init
-	$(MAKE) rebuild-kernel
-
 clean-all:
 	rm -f $(BUILD_DIR)/bayos.iso
 	$(MAKE) clean-init
 	$(MAKE) clean-mlibc
 	$(MAKE) clean-kernel
+
+rebuild:
+	$(MAKE) clean-all
+	$(MAKE) rebuild-mlibc
+	$(MAKE) rebuild-init
+	$(MAKE) rebuild-kernel
 
 clean:
 	rm -f $(BUILD_DIR)/bayos.iso
