@@ -18,6 +18,7 @@
 #include <io.h>
 #include <syscall.h>
 #include <keyboard.h>
+#include <console.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
@@ -174,7 +175,11 @@ void setup_enter_userspace_proc(void) {
 	proc->kernel_stack = NULL;
 	proc->mmap_next = USER_MMAP_BASE;
 	proc->anon_head = NULL;
-	proc->fds[STDIN_FD] = &kb_pipe;
+
+	/* initialize the file descriptors for stdin, stdout, stderr */
+	proc->fds[FD_STDIN] = &console_file;
+	proc->fds[FD_STDOUT] = &console_file;
+	proc->fds[FD_STDERR] = &console_file;
 
 	// find the elf file
 	uint8_t *init_elf;

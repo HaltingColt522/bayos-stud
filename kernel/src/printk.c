@@ -38,6 +38,13 @@ static void putchar(printk_output_type_e type, int c) {
 	}
 }
 
+/* important: this function relies on the caller of itself. if len is too big,
+ * it will access stuff behind buf, may cause a fault */
+void printk_raw(printk_output_type_e type, const uint8_t *buf, uint64_t len) {
+	for (uint64_t i = 0; i < len; i++) { putchar(type, buf[i]); }
+	return;
+}
+
 static inline int format_spec_x(printk_output_type_e type, uint64_t val) {
 	char digits[] = "0123456789abcdef";
 	char buffer[sizeof(val) * 2];

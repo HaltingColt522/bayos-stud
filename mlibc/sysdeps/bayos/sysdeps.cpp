@@ -25,27 +25,25 @@
 namespace mlibc {
 
     int sys_write(int fd, const void *buffer, size_t count, ssize_t *written) {
-        auto result = syscall(SYS_WRITE, fd, buffer, count);
+        auto result = syscall(SYS_WRITE, fd, buffer, count, (uint64_t)written);
 
-        if (result < 0) {
-            return -result;
+        if (result != 0) {
+            return result;
         }
     
-        *written = count;
         return 0;
     }
 
     int sys_isatty(int) { return 0; }
 
     int sys_read(int fd, void *buf, size_t count, ssize_t *bytes_read) {
-        auto result = syscall(SYS_READ, fd, buf, count);
+        auto result = syscall(SYS_READ, fd, buf, count, (uint64_t)bytes_read);
     
         if (result < 0) {
             *bytes_read = 0;
             return -result;
         }
     
-        *bytes_read = result;
         return 0;
     }
 
