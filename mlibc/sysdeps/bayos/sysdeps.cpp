@@ -18,6 +18,9 @@
 #define SYS_ANON_ALLOCATE 2
 #define SYS_EXIT 3
 #define SYS_ANON_FREE 4
+#define SYS_FORK 5
+#define SYS_EXECVE 6
+#define SYS_WAITPID 7
 
 namespace mlibc {
 
@@ -102,5 +105,36 @@ namespace mlibc {
 		}
 
 		return 0;
+    }
+
+    int sys_fork(pid_t *child) {
+        auto res = syscall(SYS_FORK);
+    
+        if (res < 0)
+            return -res;
+
+        *child = res;
+        return 0;
+    }
+
+    int sys_execve(const char *path, char *const argv[], char *const envp[]) {
+        auto res = syscall(SYS_EXECVE, path, argv, envp);
+
+        if (res < 0)
+            return -res;
+
+        return 0;
+    }
+
+    int sys_waitpid(pid_t pid, int *status, int flags, struct rusage *siginfo, pid_t *ret_pid) {
+        (void)siginfo;
+
+        int res = syscall(SYS_WAITPID, pid, status, flags);
+
+        if (res < 0)
+            return -res;
+
+        *ret_pid = static_cast<pid_t>(res);
+        return 0;
     }
 }

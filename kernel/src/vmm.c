@@ -391,6 +391,165 @@ vmm_status_t vmm_copy_range(bitmap_allocator_t *ba, uint64_t src_pml4, uint64_t 
 	return VMM_OK;
 }
 
+#define VMM_FREE_LEAF_FRAMES 1
+
+static vmm_status_t vmm_free_frame(bitmap_allocator_t *ba, uint64_t phys) {
+	if (free_frame(ba, phys) != PMM_OK)
+		return VMM_ERR_PMM;
+	return VMM_OK;
+}
+
+static vmm_status_t vmm_free_level(bitmap_allocator_t *ba, uint64_t table_phys, int level) {
+	uint64_t *table = (void *)(hhdm_offset + table_phys);
+
+	unsigned limit = (level == 4) ? (VMM_ENTRIES / 2) : VMM_ENTRIES;
+	vmm_status_t st;
+
+	for (unsigned i = 0; i < limit; i++) {
+		uint64_t e = table[i];
+
+		if (!(e & VMM_PRESENT))
+			continue;
+
+		if (level == 1 || (level <= 3 && (e & VMM_PS))) {
+#if VMM_FREE_LEAF_FRAMES
+			uint64_t base, size;
+
+			if (level == 3) {
+				base = e & VMM_ADDR_MASK_1G;
+				size = VMM_PAGE_SIZE_1G;
+			} else if (level == 2) {
+				base = e & VMM_ADDR_MASK_2M;
+				size = VMM_PAGE_SIZE_2M;
+			} else {
+				base = e & VMM_ADDR_MASK_4K;
+				size = VMM_PAGE_SIZE_4K;
+			}
+
+			for (uint64_t off = 0; off < size; off += VMM_PAGE_SIZE_4K) {
+				st = vmm_free_frame(ba, base + off);
+				if (st != VMM_OK)
+					return st;
+			}
+#endif // VMM_FREE_LEAF_FRAMES
+
+			table[i] = 0;
+			continue;
+		}
+
+		st = vmm_free_level(ba, e & VMM_ADDR_MASK_4K, level - 1);
+		if (st != VMM_OK)
+			return st;
+		table[i] = 0;
+	}
+
+	return vmm_free_frame(ba, table_phys);
+}
+
+vmm_status_t vmm_free_page_table(bitmap_allocator_t *ba, uint64_t cr3) {
+	if (ba == NULL)
+		return VMM_ERR_NULL_BA;
+
+	uint64_t pml4_phys = cr3 & VMM_ADDR_MASK_4K;
+	if (pml4_phys == 0)
+		return VMM_ERR_NULL_FRAME;
+
+	return vmm_free_level(ba, pml4_phys, 4);
+}
+
+
+static inline void *phys_to_virt(uint64_t phys) {
+	return (void *)(hhdm_offset + phys);
+}
+
+static uint64_t alloc_zeroed_frame(bitmap_allocator_t *ba) {
+	uint64_t phys = allocate_frame(ba);
+	if (phys == 0)
+		return 0;
+
+	memset(phys_to_virt(phys), 0, VMM_PAGE_SIZE_4K);
+	return phys;
+}
+
+static vmm_status_t vmm_copy_level(bitmap_allocator_t *ba, uint64_t src_phys, int level, uint64_t *dst_phys) {
+	uint64_t *src = phys_to_virt(src_phys);
+	uint64_t new_phys = alloc_zeroed_frame(ba);
+	if (new_phys == 0)
+		return VMM_ERR_OUT_OF_MEM;
+
+	uint64_t *dst = phys_to_virt(new_phys);
+	unsigned limit = (level == 4) ? (VMM_ENTRIES / 2) : VMM_ENTRIES;
+	vmm_status_t st = VMM_OK;
+
+	for (unsigned i = 0; i < limit; i++) {
+		uint64_t e = src[i];
+
+		if (!(e & VMM_PRESENT))
+			continue;
+
+		uint64_t flags = e & ~VMM_ADDR_MASK_4K;
+
+		if (level == 1) {
+			uint64_t frame = allocate_frame(ba);
+			if (frame == 0) {
+				st = VMM_ERR_OUT_OF_MEM;
+				goto fail;
+			}
+
+			uint64_t *s = phys_to_virt(e & VMM_ADDR_MASK_4K);
+			uint64_t *d = phys_to_virt(frame);
+			for (unsigned j = 0; j < VMM_PAGE_SIZE_4K / sizeof(uint64_t); j++)
+				d[j] = s[j];
+
+			dst[i] = frame | flags;
+			continue;
+		}
+
+		if (e & VMM_PS) {
+			st = VMM_ERR_HUGE_PAGE_CONFLICT;
+			goto fail;
+		}
+
+		uint64_t child;
+		st = vmm_copy_level(ba, e & VMM_ADDR_MASK_4K, level - 1, &child);
+		if (st != VMM_OK)
+			goto fail;
+
+		dst[i] = child | flags;
+	}
+
+	*dst_phys = new_phys;
+	return VMM_OK;
+
+fail:
+	vmm_free_level(ba, new_phys, level);
+	return st;
+}
+
+vmm_status_t vmm_copy_page_table(bitmap_allocator_t *ba, uint64_t cr3_in, uint64_t *cr3_out) {
+	if (ba == NULL)
+		return VMM_ERR_NULL_BA;
+	if (cr3_out == NULL)
+		return VMM_ERR_UNKNOWN_ERR;
+
+	uint64_t src_phys = cr3_in & VMM_ADDR_MASK_4K;
+	if (src_phys == 0)
+		return VMM_ERR_NULL_FRAME;
+
+	uint64_t new_pml4;
+	vmm_status_t st = vmm_copy_level(ba, src_phys, 4, &new_pml4);
+	if (st != VMM_OK)
+		return st;
+
+	uint64_t *src = phys_to_virt(src_phys);
+	uint64_t *dst = phys_to_virt(new_pml4);
+	for (unsigned i = VMM_ENTRIES / 2; i < VMM_ENTRIES; i++)
+		dst[i] = src[i];
+
+	*cr3_out = new_pml4 | (cr3_in & ~VMM_ADDR_MASK_4K);
+	return VMM_OK;
+}
+
 vmm_status_t vmm_init(bitmap_allocator_t *bitmap_a) {
 	if (hhdm_request.response == NULL) {
 		return VMM_ERR_NULL_HHDM;

@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <sched.h>
 #include <kheap.h>
+#include <memory.h>
 
 extern void _syscall_handler;
 
@@ -52,6 +53,9 @@ static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len);
 static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len);
 static uint64_t anon_allocate_syscall(size_t size, uint64_t *dk);
 static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size);
+static uint64_t fork_syscall();
+static uint64_t execve_syscall(const char *path, char **argv, char **evnp);
+static uint64_t waitpid_syscall(int pid, int *status, int flags);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -63,6 +67,12 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return anon_allocate_syscall(arg0, (uint64_t *)arg1);
 	case 4:
 		return anon_free_syscall(arg0, arg1);
+	case 5:
+		return fork_syscall();
+	case 6:
+		return execve_syscall((const char *)arg0, (char **)arg1, (char **)arg2);
+	case 7:
+		return waitpid_syscall((int)arg0, (int *)arg1, (int)arg2);
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
@@ -154,4 +164,119 @@ static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size) {
 	kfree(cur);
 
 	return vmm_to_errno(st);
+}
+
+static void anon_list_free(anon_block_t *head)
+{
+	while (head) {
+		anon_block_t *next = head->next;
+		kfree(head);
+		head = next;
+	}
+}
+
+static uint64_t fork_syscall(void)
+{
+	process_t *proc = get_current_process();
+
+	// now we pretend an interrupt happened right here
+	uint64_t old_rsp, rip_tmp;
+	cpu_status_t context;
+
+	asm volatile(
+		"leaq 1f(%%rip), %[rip]\n\t"
+		"movq %%rsp, %[old]\n\t"
+		"movq %[top], %%rsp\n\t"
+
+		"pushq $0x10\n\t"
+		"pushq %[old]\n\t"
+		"pushfq\n\t"
+		"pushq $0x8\n\t"
+		"pushq %[rip]\n\t"
+
+		"pushq %%rax\n\t"
+		"pushq %%rbx\n\t"
+		"pushq %%rcx\n\t"
+		"pushq %%rdx\n\t"
+		"pushq %%rbp\n\t"
+		"pushq %%rsi\n\t"
+		"pushq %%rdi\n\t"
+		"pushq %%r8\n\t"
+		"pushq %%r9\n\t"
+		"pushq %%r10\n\t"
+		"pushq %%r11\n\t"
+		"pushq %%r12\n\t"
+		"pushq %%r13\n\t"
+		"pushq %%r14\n\t"
+		"pushq %%r15\n\t"
+
+		"movq %[old], %%rsp\n\t"
+		"1:\n\t"
+		: [old] "=&r"(old_rsp), [rip] "=&r"(rip_tmp)
+		: [top] "r"((uint64_t)&context + sizeof(cpu_status_t))
+		: "memory", "cc"
+	);
+
+	if (get_current_process() != proc)
+		return 0;
+
+	// copy the address space
+	uint64_t new_cr3;
+	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	vmm_status_t st = vmm_copy_page_table(ba, proc->cr3, &new_cr3);
+	MUTEX_UNLOCK(g_ba);
+
+	if (st != VMM_OK)
+		return -ENOMEM;
+
+	process_t *new_proc = kmalloc(sizeof(process_t));
+	if (!new_proc)
+		goto fail_pt;
+
+	memcpy(new_proc, proc, sizeof(process_t));
+	new_proc->cr3 = new_cr3;
+	new_proc->pid = get_unique_pid();
+
+	// copy the anon alloc linked list
+	anon_block_t *copy_head = NULL;
+	anon_block_t **tail = &copy_head;
+
+	for (anon_block_t *cur = proc->anon_head; cur; cur = cur->next) {
+		anon_block_t *node = kmalloc(sizeof(*node));
+		if (!node) {
+			anon_list_free(copy_head);
+			kfree(new_proc);
+			goto fail_pt;
+		}
+		node->start = cur->start;
+		node->len = cur->len;
+		node->next = NULL;
+
+		*tail = node;
+		tail = &node->next;
+	}
+	new_proc->anon_head = copy_head;
+
+	new_proc->context = &context;
+
+	insert_process(new_proc);
+	yield();
+
+	return (uint64_t)new_proc->pid;
+
+fail_pt:
+	ba = MUTEX_LOCK(g_ba);
+	vmm_free_page_table(ba, new_cr3);
+	MUTEX_UNLOCK(g_ba);
+	return -ENOMEM;
+}
+
+static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
+	printk(QEMU_SERIAL, "Execve syscall not implemented\n");	
+	return (uint64_t)-1;
+}
+
+static uint64_t waitpid_syscall(int pid, int *status, int flags) {
+	printk(QEMU_SERIAL, "Waitpid syscall not implemented\n");
+	return (uint64_t)-1;
 }

@@ -73,4 +73,7 @@ vmm_status_t vmm_unmap_range(bitmap_allocator_t *ba, uint64_t phys_pml4, uint64_
 vmm_status_t vmm_copy_range(bitmap_allocator_t *ba, uint64_t src_pml4, uint64_t src_virt, uint64_t dst_pml4, uint64_t dst_virt, uint64_t size, uint64_t flags);
 vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size);
 
+vmm_status_t vmm_copy_page_table(bitmap_allocator_t *ba, uint64_t cr3_in, uint64_t *cr3_out);
+vmm_status_t vmm_free_page_table(bitmap_allocator_t *ba, uint64_t cr3);
+
 #endif // !_VMM_H
