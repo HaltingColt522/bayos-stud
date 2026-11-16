@@ -399,7 +399,7 @@ static vmm_status_t vmm_free_frame(bitmap_allocator_t *ba, uint64_t phys) {
 	return VMM_OK;
 }
 
-static vmm_status_t vmm_free_level(bitmap_allocator_t *ba, uint64_t table_phys, int level) {
+vmm_status_t vmm_free_level(bitmap_allocator_t *ba, uint64_t table_phys, int level) {
 	uint64_t *table = (void *)(hhdm_offset + table_phys);
 
 	unsigned limit = (level == 4) ? (VMM_ENTRIES / 2) : VMM_ENTRIES;
@@ -457,8 +457,7 @@ vmm_status_t vmm_free_page_table(bitmap_allocator_t *ba, uint64_t cr3) {
 	return vmm_free_level(ba, pml4_phys, 4);
 }
 
-
-static inline void *phys_to_virt(uint64_t phys) {
+void *phys_to_virt(uint64_t phys) {
 	return (void *)(hhdm_offset + phys);
 }
 
@@ -471,7 +470,7 @@ static uint64_t alloc_zeroed_frame(bitmap_allocator_t *ba) {
 	return phys;
 }
 
-static vmm_status_t vmm_copy_level(bitmap_allocator_t *ba, uint64_t src_phys, int level, uint64_t *dst_phys) {
+vmm_status_t vmm_copy_level(bitmap_allocator_t *ba, uint64_t src_phys, int level, uint64_t *dst_phys) {
 	uint64_t *src = phys_to_virt(src_phys);
 	uint64_t new_phys = alloc_zeroed_frame(ba);
 	if (new_phys == 0)

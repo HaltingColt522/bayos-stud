@@ -2,6 +2,7 @@
 #include <limine.h>
 #include <stdint.h>
 #include <memory.h>
+#include <string.h>
 
 // NOTE: this assumes the module loaded by limine
 // is a tar archive and there is only one archive loaded
@@ -28,14 +29,6 @@ static int oct2bin(uint8_t *str, int size) {
 	}
 
 	return n;
-}
-static inline size_t strlen(const char *s) {
-    size_t len = 0;
-
-    while (s[len] != '\0')
-        ++len;
-
-    return len;
 }
 
 int initramfs_lookup(char *filename, uint8_t **out) {

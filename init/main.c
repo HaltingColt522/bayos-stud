@@ -3,9 +3,6 @@
 #include <sys/wait.h>
 
 int main(void) {
-	// make it so the output buffer is flashed immediately
-	setvbuf(stdout, NULL, _IONBF, 0);
-
 	printf("Hello, from userspace!\n");
 
 	pid_t pid = fork();

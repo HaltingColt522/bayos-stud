@@ -76,4 +76,9 @@ vmm_status_t vmm_validate_virt_range(uint64_t virt, uint64_t size);
 vmm_status_t vmm_copy_page_table(bitmap_allocator_t *ba, uint64_t cr3_in, uint64_t *cr3_out);
 vmm_status_t vmm_free_page_table(bitmap_allocator_t *ba, uint64_t cr3);
 
+vmm_status_t vmm_copy_level(bitmap_allocator_t *ba, uint64_t src_phys, int level, uint64_t *dst_phys);
+vmm_status_t vmm_free_level(bitmap_allocator_t *ba, uint64_t table_phys, int level);
+
+void *phys_to_virt(uint64_t phys);
+
 #endif // !_VMM_H

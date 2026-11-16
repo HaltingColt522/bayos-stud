@@ -1,4 +1,5 @@
 #include <syscall.h>
+#include <initramfs.h>
 #include <io.h>
 #include <stdint.h>
 #include <printk.h>
@@ -9,6 +10,8 @@
 #include <sched.h>
 #include <kheap.h>
 #include <memory.h>
+#include <string.h>
+#include <elf.h>
 
 extern void _syscall_handler;
 
@@ -272,11 +275,115 @@ fail_pt:
 }
 
 static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
-	printk(QEMU_SERIAL, "Execve syscall not implemented\n");	
-	return (uint64_t)-1;
+	// TODO: validate path, argv and envp
+	// this is kinda hard to do since you
+	// need to check for each byte if it is 
+	// still in the user half
+	// NOTE: argv and envp are ignored for now anyways
+	
+	uint8_t *elf;
+	uint64_t elf_size = initramfs_lookup(path, &elf);
+	if (!elf)
+		return -ENOENT;
+
+	process_t *proc = get_current_process();
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+
+	// copy the path onto the stack in case it was stored in the elf
+	size_t path_len = strlen(path) + 1;
+	if (path_len > 0x2000) {
+		// it is probably not a good idea to copy this on the path
+		return -EFAULT;
+	}
+
+	char path_buf[path_len];
+	memmove(path_buf, path, path_len);
+
+	// reset our process to a clean state
+	// from here on out we cant return anymore, since the address space in gone
+	// we should leave a little for the stack though
+	// now i left 6 GB
+	uint64_t *pml4 = phys_to_virt(cr3 & VMM_ADDR_MASK_4K);
+
+	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	for (unsigned i = 0; i < 250; i++) {
+		uint64_t e = pml4[i];
+		if (!(e & VMM_PRESENT))
+			continue;
+
+		vmm_free_level(ba, e & VMM_ADDR_MASK_4K, 3);
+		pml4[i] = 0;
+	}
+	MUTEX_UNLOCK(g_ba);
+
+	__asm__ volatile("mov %0, %%cr3" :: "r"(cr3) : "memory");
+
+	anon_list_free(proc->anon_head);
+	proc->mmap_next = USER_MMAP_BASE;
+	proc->anon_head = NULL;
+
+	// this is somehow needed for rtdl in mlibc
+	// i dont really know why though
+	ba = MUTEX_LOCK(g_ba);
+	vmm_status_t st = vmm_map_range(ba, cr3, 0x1000, 0, 0x2000, VMM_RW | VMM_XD | VMM_US);
+	MUTEX_UNLOCK(g_ba);
+	if (st != VMM_OK) {
+		printk(QEMU_SERIAL, "[FAIL] Cant return from execve syscall\n");
+		// if this ever causes a deadlock you should probably make sure the
+		// process is cleaned up here
+		asm volatile("cli; hlt");
+	}
+	*(uint64_t *)0x2000 = 0x2000;
+
+	uint64_t entry;
+	ba = MUTEX_LOCK(g_ba);
+	elf_status_t e_st = elf_load(ba, cr3, elf, elf_size, &entry);
+	MUTEX_UNLOCK(g_ba);
+	if (e_st != ELF_OK) {
+		printk(QEMU_SERIAL, "[FAIL] Cant return from execve syscall\n");
+		// if this ever causes a deadlock you should probably make sure the
+		// process is cleaned up here
+		asm volatile("cli; hlt");
+	}
+
+	asm volatile(
+		"cli; cld\n\t"
+		"xorl %%eax, %%eax\n\t"
+		"rep stosq\n\t"
+		"movq %%rdx, %%rcx\n\t"
+		"movq %%rsi, %%rsp\n\t"
+		"movl $0x202, %%r11d\n\t"
+		"sysretq\n\t"
+		:
+		: "D"(USER_PROC_STACK_ADDRESS_LOWER_BOUND), "c"(USER_PROC_STACK_SIZE / 8), "d"(entry), "S"(USER_PROC_STACK_ADDRESS_UPPER_BOUND)
+		: "rax", "r11", "memory"
+	);
+
+	__builtin_unreachable();
 }
 
 static uint64_t waitpid_syscall(int pid, int *status, int flags) {
-	printk(QEMU_SERIAL, "Waitpid syscall not implemented\n");
-	return (uint64_t)-1;
+	// NOTE: flags are ignored for now
+	// we just react as soon as the process turns dead
+	(void)flags;
+
+	if (status == NULL)
+		return -EFAULT;
+
+	process_t *proc = get_process_from_pid(pid);
+	if (!proc)
+		return -EFAULT;
+
+	while (proc->status != DEAD) {
+		yield();
+	}
+
+	// everything must be cleaned up before this
+	remove_process_from_list(proc);
+
+	*status = proc->ret_value;
+
+	kfree(proc);
+
+	return pid;
 }
