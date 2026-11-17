@@ -20,23 +20,28 @@ volatile struct limine_module_request module_request = {
 
 static int oct2bin(uint8_t *str, int size) {
 	int n = 0;
+	int digits = 0;
 	uint8_t *c = str;
 
 	while (size-- > 0) {
-		n *= 8;
-		n += *c - '0';
+		if (*c == '\0' || *c == ' ') { break; }
+		if (*c < '0' || *c > '7') { return -1; }
+		n = n * 8 + (*c - '0');
+		digits++;
 		c++;
 	}
 
-	return n;
+	return (digits) ? n : 0;
 }
 
 int initramfs_lookup(char *filename, uint8_t **out) {
-	if (!filename || !out)
+	if (!filename || !out) {
 		return -1;
-	
-	if (!module_request.response || module_request.response->module_count != 1)
+	}
+
+	if (!module_request.response || module_request.response->module_count != 1) {
 		return 0;
+	}
 
 	uint8_t *ptr = module_request.response->modules[0]->address;
 
