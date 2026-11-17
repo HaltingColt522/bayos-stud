@@ -7,13 +7,12 @@ int main(void) {
 
 	pid_t pid = fork();
 	if (pid == 0) {
-		execve("/usr/bin/fork", NULL, NULL);
-		return -1;
+		execve("/usr/bin/shell", NULL, NULL);
 	}
 
 	int res;
 	pid = waitpid(pid, &res, 0);
-	printf("Child process with pid: %d is done. Returned %d\n", pid, res);
+	printf("Shell with pid: %d exited. Returned %d\n", pid, res);
 
 	return 0;
 }

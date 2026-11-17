@@ -78,9 +78,5 @@ sc_word_t __do_syscall6(long sc,
 }
 
 extern "C" long __do_syscall_ret(unsigned long ret) {
-	if(ret > -4096UL) {
-		errno = -ret;
-		return -1;
-	}
 	return ret;
 }

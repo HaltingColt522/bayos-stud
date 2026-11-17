@@ -1,10 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
-#define DIGITS 100
+#define DEFAULT_DIGITS 100
+#define MAX_DIGITS     100000
 
-int main(void) {
-	int n = DIGITS + 10;
+int main(int argc, char **argv) {
+	long digits = DEFAULT_DIGITS;
+
+	if (argc > 1) {
+		char *end;
+		errno = 0;
+		digits = strtol(argv[1], &end, 10);
+
+		if (errno != 0 || end == argv[1] || *end != '\0' || digits < 1 || digits > MAX_DIGITS) {
+			fprintf(stderr, "usage: %s [digits (1-%d)]\n", argv[0], MAX_DIGITS);
+			return 1;
+		}
+	}
+
+	int n = (int)digits + 10;
 	int len = (n * 10) / 3 + 1;
 
 	int *a = malloc(len * sizeof(int));
@@ -55,7 +70,7 @@ int main(void) {
 			nines = 0;
 		}
 
-		if (printed >= DIGITS)
+		if (printed >= digits)
 			break;
 	}
 

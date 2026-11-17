@@ -66,7 +66,7 @@ static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len, size_t *out)
 static uint64_t anon_allocate_syscall(size_t size, uint64_t *dk);
 static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size);
 static uint64_t fork_syscall();
-static uint64_t execve_syscall(const char *path, char **argv, char **evnp);
+static uint64_t execve_syscall(const char *path, char **argv, char **envp);
 static uint64_t waitpid_syscall(int pid, int *status, int flags);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
@@ -147,6 +147,12 @@ static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len, size_t *out)
 	int64_t n = file->ops->read(file, kbuf, chunk);
 
 	if (n < 0) { return -n; }
+
+	// echo the input
+	// normally this wouldnt belong here, put in a proper tty read function. since we dont have tty support for now and just use pipes i added it here to micic proper behaviour
+	if (fd == 0 && n > 0)
+		printk_raw(QEMU_SERIAL | FB, kbuf, n);
+
 	memcpy(buf, kbuf, (uint64_t)n);
 
 	*out = n;
@@ -335,35 +341,113 @@ fail_pt:
 	return -ENOMEM;
 }
 
-static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
-	// TODO: validate path, argv and envp
-	// this is kinda hard to do since you
-	// need to check for each byte if it is 
-	// still in the user half
-	// NOTE: argv and envp are ignored for now anyways
-	
-	uint8_t *elf;
-	uint64_t elf_size = initramfs_lookup(path, &elf);
-	if (!elf)
-		return -ENOENT;
+#define EXEC_PATH_MAX 0x1000
+#define EXEC_MAX_ARGS 128
+#define EXEC_MAX_ENVS 128
+#define EXEC_MAX_TOTAL (32 * 1024)
 
+typedef struct {
+	size_t argc, envc;
+	size_t nstr;
+	size_t used;
+	uint32_t off[EXEC_MAX_ARGS + EXEC_MAX_ENVS];
+	char data[EXEC_MAX_TOTAL];
+} exec_args_t;
+
+static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, size_t *len_out) {
+	for (size_t i = 0; i < max; i++) {
+		uint64_t a = (uint64_t)src + i;
+		if (i == 0 || (a & 0xfff) == 0) {
+			if (!is_user_ptr(a, 1) || !user_range_ok(cr3, a, 1))
+				return -EFAULT;
+		}
+		char c = src[i];
+		dst[i] = c;
+		if (c == 0) { *len_out = i + 1; return 0; }
+	}
+	return -E2BIG;
+}
+
+static int exec_collect(uint64_t cr3, exec_args_t *a, char **vec, size_t max, size_t *count) {
+	size_t n = 0;
+	if (vec == NULL) { *count = 0; return 0; }   // treat NULL like an empty array
+
+	for (;; n++) {
+		uint64_t slot = (uint64_t)&vec[n];
+		if (!is_user_ptr(slot, sizeof(char *)) || !user_range_ok(cr3, slot, sizeof(char *)))
+			return -EFAULT;
+
+		const char *s = vec[n];
+		if (s == NULL) break;
+		if (n >= max) return -E2BIG;
+
+		size_t len;
+		int r = copy_user_str(cr3, s, a->data + a->used, EXEC_MAX_TOTAL - a->used, &len);
+		if (r) return r;
+
+		a->off[a->nstr++] = a->used;
+		a->used += len;
+	}
+	*count = n;
+	return 0;
+}
+
+static volatile uint32_t exec_busy = 0;
+static uint8_t exec_img[EXEC_MAX_TOTAL + 4096] __attribute__((aligned(16)));
+
+static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	process_t *proc = get_current_process();
+	if (proc == NULL) return -EFAULT;
 	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
 
-	// copy the path onto the stack in case it was stored in the elf
-	size_t path_len = strlen(path) + 1;
-	if (path_len > 0x2000) {
-		// it is probably not a good idea to copy this on the path
-		return -EFAULT;
+	char path_buf[EXEC_PATH_MAX];
+	size_t path_len;
+	int r = copy_user_str(cr3, path, path_buf, sizeof path_buf, &path_len);
+	if (r) return r;
+
+	uint8_t *elf = NULL;
+	uint64_t elf_size = initramfs_lookup(path_buf, &elf);
+	if (!elf) return -ENOENT;
+
+	exec_args_t *a = kmalloc(sizeof *a);
+	if (!a) return -ENOMEM;
+	a->nstr = 0;
+	a->used = 0;
+
+	r = exec_collect(cr3, a, argv, EXEC_MAX_ARGS, &a->argc);
+	if (!r) r = exec_collect(cr3, a, envp, EXEC_MAX_ENVS, &a->envc);
+	if (r) { kfree(a); return r; }
+
+	size_t argc = a->argc, envc = a->envc;
+	size_t words = 1 + argc + 1 + envc + 1 + 2; 
+
+	uint64_t str_size = (a->used + 7) & ~7ULL;
+	uint64_t str_base = USER_PROC_STACK_ADDRESS_UPPER_BOUND - str_size;
+	uint64_t sp       = (str_base - words * 8) & ~0xFULL;
+	uint64_t img_size = USER_PROC_STACK_ADDRESS_UPPER_BOUND - sp;
+
+	if (img_size > sizeof exec_img || img_size > USER_PROC_STACK_SIZE / 2) {
+		kfree(a);
+		return -E2BIG;
 	}
 
-	char path_buf[path_len];
-	memmove(path_buf, path, path_len);
+	while (__atomic_exchange_n(&exec_busy, 1, __ATOMIC_ACQUIRE) != 0) {
+		// wait till the other process finished
+		yield();
+	}
 
-	// reset our process to a clean state
-	// from here on out we cant return anymore, since the address space in gone
-	// we should leave a little for the stack though
-	// now i left 6 GB
+	memset(exec_img, 0, img_size);
+	uint64_t *p = (uint64_t *)exec_img;
+	*p++ = argc;
+	for (size_t i = 0; i < argc; i++) *p++ = str_base + a->off[i];
+	*p++ = 0;
+	for (size_t i = 0; i < envc; i++) *p++ = str_base + a->off[argc + i];
+	*p++ = 0;
+	*p++ = 0; *p++ = 0;
+	memcpy(exec_img + (str_base - sp), a->data, a->used);
+
+	kfree(a);
+
 	uint64_t *pml4 = phys_to_virt(cr3 & VMM_ADDR_MASK_4K);
 
 	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
@@ -371,7 +455,6 @@ static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
 		uint64_t e = pml4[i];
 		if (!(e & VMM_PRESENT))
 			continue;
-
 		vmm_free_level(ba, e & VMM_ADDR_MASK_4K, 3);
 		pml4[i] = 0;
 	}
@@ -384,14 +467,11 @@ static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
 	proc->anon_head = NULL;
 
 	// this is somehow needed for rtdl in mlibc
-	// i dont really know why though
 	ba = MUTEX_LOCK(g_ba);
 	vmm_status_t st = vmm_map_range(ba, cr3, 0x1000, 0, 0x2000, VMM_RW | VMM_XD | VMM_US);
 	MUTEX_UNLOCK(g_ba);
 	if (st != VMM_OK) {
 		printk(QEMU_SERIAL, "[FAIL] Cant return from execve syscall\n");
-		// if this ever causes a deadlock you should probably make sure the
-		// process is cleaned up here
 		asm volatile("cli; hlt");
 	}
 	*(uint64_t *)0x2000 = 0x2000;
@@ -402,24 +482,32 @@ static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
 	MUTEX_UNLOCK(g_ba);
 	if (e_st != ELF_OK) {
 		printk(QEMU_SERIAL, "[FAIL] Cant return from execve syscall\n");
-		// if this ever causes a deadlock you should probably make sure the
-		// process is cleaned up here
 		asm volatile("cli; hlt");
 	}
+
+	register uint64_t r_sp    asm("r8") = sp;
+	register uint64_t r_words asm("r9") = img_size / 8;
+
+	uint64_t d_lo  = USER_PROC_STACK_ADDRESS_LOWER_BOUND;
+	uint64_t d_cnt = USER_PROC_STACK_SIZE / 8;
+	uint64_t d_src = (uint64_t)exec_img;
 
 	asm volatile(
 		"cli; cld\n\t"
 		"xorl %%eax, %%eax\n\t"
 		"rep stosq\n\t"
+		"movq %%r8, %%rdi\n\t"
+		"movq %%r9, %%rcx\n\t"
+		"rep movsq\n\t"
+		"movl $0, %[busy]\n\t"
 		"movq %%rdx, %%rcx\n\t"
-		"movq %%rsi, %%rsp\n\t"
+		"movq %%r8, %%rsp\n\t"
 		"movl $0x202, %%r11d\n\t"
 		"sysretq\n\t"
-		:
-		: "D"(USER_PROC_STACK_ADDRESS_LOWER_BOUND), "c"(USER_PROC_STACK_SIZE / 8), "d"(entry), "S"(USER_PROC_STACK_ADDRESS_UPPER_BOUND)
+		: "+D"(d_lo), "+c"(d_cnt), "+S"(d_src), [busy] "=m"(exec_busy)
+		: "d"(entry), "r"(r_sp), "r"(r_words)
 		: "rax", "r11", "memory"
 	);
-
 	__builtin_unreachable();
 }
 
