@@ -424,9 +424,9 @@ static uint64_t execve_syscall(const char *path, char **argv, char **evnp) {
 }
 
 static uint64_t waitpid_syscall(int pid, int *status, int flags) {
-	// NOTE: flags are ignored for now
-	// we just react as soon as the process turns dead
-	(void)flags;
+	if (flags != 0)
+		// we can only handle this case for now
+		return -EFAULT;
 
 	if (status == NULL)
 		return -EFAULT;
