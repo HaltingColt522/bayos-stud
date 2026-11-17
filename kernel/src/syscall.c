@@ -68,6 +68,7 @@ static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size);
 static uint64_t fork_syscall();
 static uint64_t execve_syscall(const char *path, char **argv, char **envp);
 static uint64_t waitpid_syscall(int pid, int *status, int flags);
+static uint64_t exit_syscall(int status) __attribute__((__noreturn__));
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -77,6 +78,9 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return write_syscall(arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
 	case 2:
 		return anon_allocate_syscall(arg0, (uint64_t *)arg1);
+	case 3:
+		exit_syscall(arg0);
+		__builtin_unreachable();
 	case 4:
 		return anon_free_syscall(arg0, arg1);
 	case 5:
@@ -89,6 +93,27 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
+}
+
+static uint64_t exit_syscall(int status) {
+	process_t *proc = get_current_process();
+	printk(QEMU_SERIAL, "pid %d exited with %d\n", proc->pid, status);
+
+	anon_block_t *node = proc->anon_head;
+
+	while (node != NULL) {
+		anon_block_t *next = node->next;
+		bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+		vmm_unmap_range(ba, proc->cr3, node->start, node->len, 1);
+		MUTEX_UNLOCK(g_ba);
+		kfree(node);
+		node = next;
+	}
+
+	proc->anon_head = NULL;
+	proc->status = status;
+
+	mark_current_proc_as_dead();
 }
 
 static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len, size_t *out) {
@@ -150,8 +175,9 @@ static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len, size_t *out)
 
 	// echo the input
 	// normally this wouldnt belong here, put in a proper tty read function. since we dont have tty support for now and just use pipes i added it here to micic proper behaviour
-	if (fd == 0 && n > 0)
+	if (fd == 0 && n > 0) {
 		printk_raw(QEMU_SERIAL | FB, kbuf, n);
+	}
 
 	memcpy(buf, kbuf, (uint64_t)n);
 
@@ -236,8 +262,7 @@ static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size) {
 	return vmm_to_errno(st);
 }
 
-static void anon_list_free(anon_block_t *head)
-{
+static void anon_list_free(anon_block_t *head) {
 	while (head) {
 		anon_block_t *next = head->next;
 		kfree(head);
@@ -245,8 +270,7 @@ static void anon_list_free(anon_block_t *head)
 	}
 }
 
-static uint64_t fork_syscall(void)
-{
+static uint64_t fork_syscall(void) {
 	process_t *proc = get_current_process();
 
 	// now we pretend an interrupt happened right here
@@ -254,41 +278,42 @@ static uint64_t fork_syscall(void)
 	cpu_status_t context;
 
 	asm volatile(
-		"leaq 1f(%%rip), %[rip]\n\t"
-		"movq %%rsp, %[old]\n\t"
-		"movq %[top], %%rsp\n\t"
+	    "leaq 1f(%%rip), %[rip]\n\t"
+	    "movq %%rsp, %[old]\n\t"
+	    "movq %[top], %%rsp\n\t"
 
-		"pushq $0x10\n\t"
-		"pushq %[old]\n\t"
-		"pushfq\n\t"
-		"pushq $0x8\n\t"
-		"pushq %[rip]\n\t"
+	    "pushq $0x10\n\t"
+	    "pushq %[old]\n\t"
+	    "pushfq\n\t"
+	    "pushq $0x8\n\t"
+	    "pushq %[rip]\n\t"
 
-		"pushq %%rax\n\t"
-		"pushq %%rbx\n\t"
-		"pushq %%rcx\n\t"
-		"pushq %%rdx\n\t"
-		"pushq %%rbp\n\t"
-		"pushq %%rsi\n\t"
-		"pushq %%rdi\n\t"
-		"pushq %%r8\n\t"
-		"pushq %%r9\n\t"
-		"pushq %%r10\n\t"
-		"pushq %%r11\n\t"
-		"pushq %%r12\n\t"
-		"pushq %%r13\n\t"
-		"pushq %%r14\n\t"
-		"pushq %%r15\n\t"
+	    "pushq %%rax\n\t"
+	    "pushq %%rbx\n\t"
+	    "pushq %%rcx\n\t"
+	    "pushq %%rdx\n\t"
+	    "pushq %%rbp\n\t"
+	    "pushq %%rsi\n\t"
+	    "pushq %%rdi\n\t"
+	    "pushq %%r8\n\t"
+	    "pushq %%r9\n\t"
+	    "pushq %%r10\n\t"
+	    "pushq %%r11\n\t"
+	    "pushq %%r12\n\t"
+	    "pushq %%r13\n\t"
+	    "pushq %%r14\n\t"
+	    "pushq %%r15\n\t"
 
-		"movq %[old], %%rsp\n\t"
-		"1:\n\t"
-		: [old] "=&r"(old_rsp), [rip] "=&r"(rip_tmp)
-		: [top] "r"((uint64_t)&context + sizeof(cpu_status_t))
-		: "memory", "cc"
+	    "movq %[old], %%rsp\n\t"
+	    "1:\n\t"
+	    : [old] "=&r"(old_rsp), [rip] "=&r"(rip_tmp)
+	    : [top] "r"((uint64_t)&context + sizeof(cpu_status_t))
+	    : "memory", "cc"
 	);
 
-	if (get_current_process() != proc)
+	if (get_current_process() != proc) {
 		return 0;
+	}
 
 	// copy the address space
 	uint64_t new_cr3;
@@ -296,12 +321,14 @@ static uint64_t fork_syscall(void)
 	vmm_status_t st = vmm_copy_page_table(ba, proc->cr3, &new_cr3);
 	MUTEX_UNLOCK(g_ba);
 
-	if (st != VMM_OK)
+	if (st != VMM_OK) {
 		return -ENOMEM;
+	}
 
 	process_t *new_proc = kmalloc(sizeof(process_t));
-	if (!new_proc)
+	if (!new_proc) {
 		goto fail_pt;
+	}
 
 	memcpy(new_proc, proc, sizeof(process_t));
 	new_proc->cr3 = new_cr3;
@@ -358,8 +385,9 @@ static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, s
 	for (size_t i = 0; i < max; i++) {
 		uint64_t a = (uint64_t)src + i;
 		if (i == 0 || (a & 0xfff) == 0) {
-			if (!is_user_ptr(a, 1) || !user_range_ok(cr3, a, 1))
+			if (!is_user_ptr(a, 1) || !user_range_ok(cr3, a, 1)) {
 				return -EFAULT;
+			}
 		}
 		char c = src[i];
 		dst[i] = c;
@@ -374,16 +402,17 @@ static int exec_collect(uint64_t cr3, exec_args_t *a, char **vec, size_t max, si
 
 	for (;; n++) {
 		uint64_t slot = (uint64_t)&vec[n];
-		if (!is_user_ptr(slot, sizeof(char *)) || !user_range_ok(cr3, slot, sizeof(char *)))
+		if (!is_user_ptr(slot, sizeof(char *)) || !user_range_ok(cr3, slot, sizeof(char *))) {
 			return -EFAULT;
+		}
 
 		const char *s = vec[n];
-		if (s == NULL) break;
-		if (n >= max) return -E2BIG;
+		if (s == NULL) { break; }
+		if (n >= max) { return -E2BIG; }
 
 		size_t len;
 		int r = copy_user_str(cr3, s, a->data + a->used, EXEC_MAX_TOTAL - a->used, &len);
-		if (r) return r;
+		if (r) { return r; }
 
 		a->off[a->nstr++] = a->used;
 		a->used += len;
@@ -397,29 +426,29 @@ static uint8_t exec_img[EXEC_MAX_TOTAL + 4096] __attribute__((aligned(16)));
 
 static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	process_t *proc = get_current_process();
-	if (proc == NULL) return -EFAULT;
+	if (proc == NULL) { return -EFAULT; }
 	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
 
 	char path_buf[EXEC_PATH_MAX];
 	size_t path_len;
 	int r = copy_user_str(cr3, path, path_buf, sizeof path_buf, &path_len);
-	if (r) return r;
+	if (r) { return r; }
 
 	uint8_t *elf = NULL;
 	uint64_t elf_size = initramfs_lookup(path_buf, &elf);
-	if (!elf) return -ENOENT;
+	if (!elf) { return -ENOENT; }
 
 	exec_args_t *a = kmalloc(sizeof *a);
-	if (!a) return -ENOMEM;
+	if (!a) { return -ENOMEM; }
 	a->nstr = 0;
 	a->used = 0;
 
 	r = exec_collect(cr3, a, argv, EXEC_MAX_ARGS, &a->argc);
-	if (!r) r = exec_collect(cr3, a, envp, EXEC_MAX_ENVS, &a->envc);
+	if (!r) { r = exec_collect(cr3, a, envp, EXEC_MAX_ENVS, &a->envc); }
 	if (r) { kfree(a); return r; }
 
 	size_t argc = a->argc, envc = a->envc;
-	size_t words = 1 + argc + 1 + envc + 1 + 2; 
+	size_t words = 1 + argc + 1 + envc + 1 + 2;
 
 	uint64_t str_size = (a->used + 7) & ~7ULL;
 	uint64_t str_base = USER_PROC_STACK_ADDRESS_UPPER_BOUND - str_size;
@@ -439,11 +468,12 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	memset(exec_img, 0, img_size);
 	uint64_t *p = (uint64_t *)exec_img;
 	*p++ = argc;
-	for (size_t i = 0; i < argc; i++) *p++ = str_base + a->off[i];
+	for (size_t i = 0; i < argc; i++) { *p++ = str_base + a->off[i]; }
 	*p++ = 0;
-	for (size_t i = 0; i < envc; i++) *p++ = str_base + a->off[argc + i];
+	for (size_t i = 0; i < envc; i++) { *p++ = str_base + a->off[argc + i]; }
 	*p++ = 0;
-	*p++ = 0; *p++ = 0;
+	*p++ = 0;
+	*p++ = 0;
 	memcpy(exec_img + (str_base - sp), a->data, a->used);
 
 	kfree(a);
@@ -453,8 +483,9 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
 	for (unsigned i = 0; i < 250; i++) {
 		uint64_t e = pml4[i];
-		if (!(e & VMM_PRESENT))
+		if (!(e & VMM_PRESENT)) {
 			continue;
+		}
 		vmm_free_level(ba, e & VMM_ADDR_MASK_4K, 3);
 		pml4[i] = 0;
 	}
@@ -493,20 +524,20 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	uint64_t d_src = (uint64_t)exec_img;
 
 	asm volatile(
-		"cli; cld\n\t"
-		"xorl %%eax, %%eax\n\t"
-		"rep stosq\n\t"
-		"movq %%r8, %%rdi\n\t"
-		"movq %%r9, %%rcx\n\t"
-		"rep movsq\n\t"
-		"movl $0, %[busy]\n\t"
-		"movq %%rdx, %%rcx\n\t"
-		"movq %%r8, %%rsp\n\t"
-		"movl $0x202, %%r11d\n\t"
-		"sysretq\n\t"
-		: "+D"(d_lo), "+c"(d_cnt), "+S"(d_src), [busy] "=m"(exec_busy)
-		: "d"(entry), "r"(r_sp), "r"(r_words)
-		: "rax", "r11", "memory"
+	    "cli; cld\n\t"
+	    "xorl %%eax, %%eax\n\t"
+	    "rep stosq\n\t"
+	    "movq %%r8, %%rdi\n\t"
+	    "movq %%r9, %%rcx\n\t"
+	    "rep movsq\n\t"
+	    "movl $0, %[busy]\n\t"
+	    "movq %%rdx, %%rcx\n\t"
+	    "movq %%r8, %%rsp\n\t"
+	    "movl $0x202, %%r11d\n\t"
+	    "sysretq\n\t"
+	    : "+D"(d_lo), "+c"(d_cnt), "+S"(d_src), [busy] "=m"(exec_busy)
+	    : "d"(entry), "r"(r_sp), "r"(r_words)
+	    : "rax", "r11", "memory"
 	);
 	__builtin_unreachable();
 }
@@ -514,14 +545,18 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 static uint64_t waitpid_syscall(int pid, int *status, int flags) {
 	if (flags != 0)
 		// we can only handle this case for now
+	{
 		return -EFAULT;
+	}
 
-	if (status == NULL)
+	if (status == NULL) {
 		return -EFAULT;
+	}
 
 	process_t *proc = get_process_from_pid(pid);
-	if (!proc)
+	if (!proc) {
 		return -EFAULT;
+	}
 
 	while (proc->status != DEAD) {
 		yield();

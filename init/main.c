@@ -14,5 +14,8 @@ int main(void) {
 	pid = waitpid(pid, &res, 0);
 	printf("Shell with pid: %d exited. Returned %d\n", pid, res);
 
+	/* also works without it. but i guess its better to prevent init proc to exit */
+	for (;;) {}
+
 	return 0;
 }
