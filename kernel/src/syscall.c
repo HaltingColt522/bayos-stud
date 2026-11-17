@@ -61,6 +61,14 @@ bool user_range_ok(uint64_t cr3, uint64_t ptr, uint64_t len) {
 	return true;
 }
 
+static void anon_list_free(anon_block_t *head) {
+	while (head) {
+		anon_block_t *next = head->next;
+		kfree(head);
+		head = next;
+	}
+}
+
 static uint64_t write_syscall(uint64_t fd, const uint8_t *buf, size_t len, size_t *out);
 static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len, size_t *out);
 static uint64_t anon_allocate_syscall(size_t size, uint64_t *dk);
@@ -99,16 +107,11 @@ static uint64_t exit_syscall(int status) {
 	process_t *proc = get_current_process();
 	printk(QEMU_SERIAL, "pid %d exited with %d\n", proc->pid, status);
 
-	anon_block_t *node = proc->anon_head;
+	anon_list_free(proc->anon_head);
 
-	while (node != NULL) {
-		anon_block_t *next = node->next;
-		bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
-		vmm_unmap_range(ba, proc->cr3, node->start, node->len, 1);
-		MUTEX_UNLOCK(g_ba);
-		kfree(node);
-		node = next;
-	}
+	bitmap_allocator_t *ba = MUTEX_LOCK(g_ba);
+	vmm_free_page_table(ba, proc->cr3);
+	MUTEX_UNLOCK(g_ba);
 
 	proc->anon_head = NULL;
 	proc->status = status;
@@ -260,14 +263,6 @@ static uint64_t anon_free_syscall(uint64_t ptr, uint64_t size) {
 	kfree(cur);
 
 	return vmm_to_errno(st);
-}
-
-static void anon_list_free(anon_block_t *head) {
-	while (head) {
-		anon_block_t *next = head->next;
-		kfree(head);
-		head = next;
-	}
 }
 
 static uint64_t fork_syscall(void) {
