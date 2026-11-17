@@ -48,7 +48,7 @@ namespace mlibc {
     }
 
     [[noreturn]] void sys_exit(int status) {
-        syscall(SYS_EXIT);
+        syscall(SYS_EXIT, status);
     }
 
     int sys_close(int) {
