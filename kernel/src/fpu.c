@@ -6,7 +6,7 @@ void fpu_init(void) {
 
 	asm volatile("mov %%cr0, %0" : "=r"(cr0));
 	cr0 &= ~((1ULL << 2) | (1ULL << 3));
-	cr0 |=  (1ULL << 1) | (1ULL << 5);
+	cr0 |= (1ULL << 1) | (1ULL << 5);
 	asm volatile("mov %0, %%cr0" :: "r"(cr0));
 
 	asm volatile("mov %%cr4, %0" : "=r"(cr4));

@@ -162,20 +162,20 @@ process_t *get_current_process(void) {
 static uint32_t _next_pid = 1;
 int get_unique_pid(void) {
 	int pid = (int)__atomic_fetch_add(
-		&_next_pid,
-		1,
-		__ATOMIC_SEQ_CST
-	);
+	              &_next_pid,
+	              1,
+	              __ATOMIC_SEQ_CST
+	          );
 
 	printk(QEMU_SERIAL, "New Pid: %d\n", pid);
 
 	return pid;
 }
 
-void remove_process_from_list(process_t *p)
-{
-	if (p == nullptr || process_list == nullptr)
+void remove_process_from_list(process_t *p) {
+	if (p == nullptr || process_list == nullptr) {
 		return;
+	}
 
 	if (process_list == p) {
 		process_list = process_list->next;
