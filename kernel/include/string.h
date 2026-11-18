@@ -11,4 +11,20 @@ static inline size_t strlen(const char *s) {
 	return len;
 }
 
+static inline char *strchr(const char *s, int c) {
+	unsigned char target = (unsigned char)c;
+
+	for (;;) {
+		if ((unsigned char) * s == target) {
+			return (char *)s;
+		}
+
+		if (*s == '\0') {
+			return NULL;
+		}
+
+		++s;
+	}
+}
+
 #endif // STRING_H

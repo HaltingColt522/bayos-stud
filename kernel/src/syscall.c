@@ -77,6 +77,8 @@ static uint64_t fork_syscall();
 static uint64_t execve_syscall(const char *path, char **argv, char **envp);
 static uint64_t waitpid_syscall(int pid, int *status, int flags);
 static uint64_t exit_syscall(int status) __attribute__((__noreturn__));
+static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
+static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, size_t *len_out);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -97,10 +99,58 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return execve_syscall((const char *)arg0, (char **)arg1, (char **)arg2);
 	case 7:
 		return waitpid_syscall((int)arg0, (int *)arg1, (int)arg2);
+	case 8:
+		return sys_listprog((const char *)arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
+}
+
+static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
+	process_t *proc = get_current_process();
+	if (!proc) { return EFAULT; }
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+
+	if (!user_range_ok(cr3, (uint64_t)out, sizeof(*out))) { return EFAULT; }
+	if (len > LISTPROG_MAX) { len = LISTPROG_MAX; }
+	if (len > 0) {
+		if (!is_user_ptr((uint64_t)buf, len) || !user_range_ok(cr3, (uint64_t)buf, len)) {
+			return EFAULT;
+		}
+	}
+
+	char kpath[0x100];
+	uint64_t n = 0;
+	if (copy_user_str(cr3, path, kpath, sizeof(kpath), &n) != 0) { return EFAULT; }
+	--n;
+
+	if (n == 0 || kpath[0] != '/') { return EINVAL; }
+	if (kpath[n - 1] != '/') {
+		if ((n + 2) > (int)(sizeof(kpath))) { return EINVAL; }
+		kpath[n] = '/';
+		kpath[n + 1] = '\0';
+	}
+
+	uint64_t maxlen = (len > 1) ? len : 1;
+	char *kbuf = (char *)kmalloc(maxlen);
+	if (kbuf == NULL) { return ENOMEM; }
+
+	int64_t needed = initramfs_list_dir(kpath, kbuf, len);
+	if (needed < 0) {
+		kfree(kbuf);
+		return EINVAL;
+	}
+
+	*out = needed;
+	if ((uint64_t)needed > len) {
+		kfree(kbuf);
+		return ERANGE;
+	}
+
+	memcpy(buf, kbuf, needed);
+	kfree(kbuf);
+	return 0;
 }
 
 static uint64_t exit_syscall(int status) {

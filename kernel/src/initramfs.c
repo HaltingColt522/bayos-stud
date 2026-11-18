@@ -55,3 +55,36 @@ int initramfs_lookup(char *filename, uint8_t **out) {
 	}
 	return 0;
 }
+
+int initramfs_list_dir(const char *dir, char *buf, size_t buflen) {
+	if (!dir) { return -1; }
+	if (!module_request.response || module_request.response->module_count != 1) { return 0; }
+
+	uint64_t dirlen = strlen(dir);
+	uint64_t needed = 0;
+	uint8_t *ptr = module_request.response->modules[0]->address;
+
+	/* we don't care about ustar header */
+	while (!memcmp(ptr + 257, "ustar", 5)) {
+		int64_t filesize = oct2bin(ptr + 124, 12);
+		char *name = (char *)ptr + 1;
+		char type = ptr[156];
+
+		if ((type == '0' || type == '\0')
+		        && !(memcmp(name, dir, dirlen))
+		        && name[dirlen] != '\0'
+		        && !strchr(name + dirlen, '/')) {
+			uint64_t n = strlen(name + dirlen);
+
+			if (needed + n + 1 <= buflen) {
+				memcpy(buf + needed, name + dirlen, n);
+				buf[needed + n] = '\n';
+			}
+
+			needed += n + 1;
+		}
+
+		ptr += (((filesize + 511) / 512) + 1) * 512;
+	}
+	return needed;
+}

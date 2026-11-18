@@ -21,8 +21,19 @@
 #define SYS_FORK 5
 #define SYS_EXECVE 6
 #define SYS_WAITPID 7
+#define SYS_LIST_PROG 8
 
 namespace mlibc {
+	int sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
+		auto result = syscall(SYS_LIST_PROG, path, buf, len, out);
+
+		if (result != 0) {
+			return result;
+		}
+
+		return 0;
+	}
+
 
     int sys_write(int fd, const void *buffer, size_t count, ssize_t *written) {
         auto result = syscall(SYS_WRITE, fd, buffer, count, (uint64_t)written);
@@ -134,4 +145,8 @@ namespace mlibc {
         *ret_pid = static_cast<pid_t>(res);
         return 0;
     }
+}
+
+extern "C" int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
+	return mlibc::sys_listprog(path, buf, len, out);
 }
