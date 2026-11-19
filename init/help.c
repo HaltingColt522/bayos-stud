@@ -33,6 +33,9 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
+		/* clear terminal */
+		write(1, "\033[2J\033[H", 7);
+
 		const char *prefix = "/usr/bin/";
 		uint64_t len = strlen(prefix) + strlen(argv[1]) + 1;
 		char *path = malloc(len);
@@ -65,6 +68,17 @@ int main(int argc, char **argv) {
 			free(path);
 			return 1;
 		}
+
+		int c = 0;
+
+		for (;;) {
+			uint64_t n = read(0, &c, 1);
+			if (n <= 0) { break; }
+			if ((c == 'q') || (c == 'Q')) { break; }
+		}
+
+		/* clear terminal */
+		write(1, "\033[2J\033[H", 7);
 
 		free(path);
 

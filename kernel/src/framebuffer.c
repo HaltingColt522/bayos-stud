@@ -24,12 +24,25 @@ typedef struct {
 
 #define TAB_SIZE 8
 
+typedef enum {
+	ST_NORMAL,
+	ST_ESC,
+	ST_CSI,
+} esc_state_t;
+
+static esc_state_t esc_state = ST_NORMAL;
+static int esc_param = 0;
+
 static inline uint64_t width(framebuffer_t *fb) {
 	return fb->info.width;
 }
 
 static inline uint64_t height(framebuffer_t *fb) {
 	return fb->info.height;
+}
+
+static inline uint64_t pitch(framebuffer_t *fb) {
+	return fb->info.pitch;
 }
 
 static inline void carriage_return(framebuffer_t *fb) {
@@ -42,7 +55,7 @@ static inline void newline(framebuffer_t *fb) {
 }
 
 static inline void clear(framebuffer_t *fb) {
-	uint64_t size = fb->info.bpp / 8 * width(fb) * height(fb);
+	uint64_t size = pitch(fb) * height(fb);
 	fb->x_pos = BORDER_PADDING;
 	fb->y_pos = BORDER_PADDING;
 	memset(fb->buffer, 0, size);
@@ -79,6 +92,25 @@ static void tab(framebuffer_t *fb) {
 }
 
 int framebuffer_putchar(framebuffer_t *fb, int c) {
+	switch (esc_state) {
+	case ST_ESC:
+		if (c == '[') { esc_state = ST_CSI; esc_param = 0; }
+		else { esc_state = ST_NORMAL; }
+		return 0;
+	case ST_CSI:
+		if (c >= '0' && c <= '9') {
+			esc_param = esc_param * 10 + (c - '0');
+			return 0;
+		}
+		if (c == 'J' && esc_param == 2) { clear(fb); }
+		else if (c == 'H') { fb->x_pos = BORDER_PADDING; fb->y_pos = BORDER_PADDING; }
+		esc_state = ST_NORMAL;
+		return 0;
+	case ST_NORMAL:
+		/* 0x1B == ESC */
+		if (c == 0x1B) { esc_state = ST_ESC; return 0;}
+		break;
+	}
 	switch (c) {
 	case '\n':
 		newline(fb);
