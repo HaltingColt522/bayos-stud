@@ -74,6 +74,9 @@ int main(int argc, char **argv) {
 			return 127;
 		}
 
+		const char *hint = "\n-- q to quit --\n";
+		write(1, hint, strlen(hint));
+
 		char c = 0;
 		for (;;) {
 			int64_t n = read(0, &c, 1);
