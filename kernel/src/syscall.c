@@ -164,7 +164,7 @@ static uint64_t exit_syscall(int status) {
 	MUTEX_UNLOCK(g_ba);
 
 	proc->anon_head = NULL;
-	proc->status = status;
+	proc->ret_value = status;
 
 	mark_current_proc_as_dead();
 }

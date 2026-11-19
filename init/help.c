@@ -69,10 +69,14 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		int c = 0;
+		if (st == 127) {
+			free(path);
+			return 127;
+		}
 
+		char c = 0;
 		for (;;) {
-			uint64_t n = read(0, &c, 1);
+			int64_t n = read(0, &c, 1);
 			if (n <= 0) { break; }
 			if ((c == 'q') || (c == 'Q')) { break; }
 		}
@@ -82,6 +86,6 @@ int main(int argc, char **argv) {
 
 		free(path);
 
-		return WIFEXITED(st) ? WEXITSTATUS(st) : 1;
+		return 0;
 	}
 }
