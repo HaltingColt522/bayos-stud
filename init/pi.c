@@ -1,12 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "manpage.h"
 
 #define DEFAULT_DIGITS 100
 #define MAX_DIGITS     100000
 
+static const manpage_entry_t man = {
+	.name = "pi",
+	.desc = "Calculate pi to n - 1 decimal places.",
+	.usage = "pi [digits (1 - 100000)]"
+};
+
 int main(int argc, char **argv) {
 	long digits = DEFAULT_DIGITS;
+
+	if (handle_manpage(&man, argc, argv)) { return 0; }
 
 	if (argc > 1) {
 		char *end;
@@ -23,11 +32,13 @@ int main(int argc, char **argv) {
 	int len = (n * 10) / 3 + 1;
 
 	int *a = malloc(len * sizeof(int));
-	if (!a)
+	if (!a) {
 		return -1;
+	}
 
-	for (int i = 0; i < len; i++)
+	for (int i = 0; i < len; i++) {
 		a[i] = 2;
+	}
 
 	int nines = 0, predigit = 0;
 	int printed = 0;
@@ -59,8 +70,9 @@ int main(int argc, char **argv) {
 			if (j > 0) {
 				printf("%d", predigit);
 				printed++;
-				if (printed == 1)
+				if (printed == 1) {
 					printf(".");
+				}
 			}
 			predigit = q;
 			for (int k = 0; k < nines; k++) {
@@ -70,8 +82,9 @@ int main(int argc, char **argv) {
 			nines = 0;
 		}
 
-		if (printed >= digits)
+		if (printed >= digits) {
 			break;
+		}
 	}
 
 	printf("\n");

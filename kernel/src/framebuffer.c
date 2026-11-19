@@ -72,6 +72,12 @@ static void write_char(framebuffer_t *fb, unsigned char c, uint32_t color) {
 	fb->x_pos += CHAR_RASTER_WIDTH + LETTER_SPACING;
 }
 
+static void tab(framebuffer_t *fb) {
+	for (int i = 0; i < TAB_SIZE; i++) {
+		write_char(fb, ' ', 0xffffffff);
+	}
+}
+
 int framebuffer_putchar(framebuffer_t *fb, int c) {
 	switch (c) {
 	case '\n':
@@ -79,6 +85,9 @@ int framebuffer_putchar(framebuffer_t *fb, int c) {
 		break;
 	case '\r':
 		carriage_return(fb);
+		break;
+	case '\t':
+		tab(fb);
 		break;
 	default:
 		uint64_t new_xpos = fb->x_pos + CHAR_RASTER_WIDTH;
