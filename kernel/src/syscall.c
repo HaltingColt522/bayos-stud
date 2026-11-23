@@ -79,6 +79,7 @@ static uint64_t waitpid_syscall(int pid, int *status, int flags);
 static uint64_t exit_syscall(int status) __attribute__((__noreturn__));
 static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
 static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, size_t *len_out);
+static uint64_t count_procs();
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -101,10 +102,18 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return waitpid_syscall((int)arg0, (int *)arg1, (int)arg2);
 	case 8:
 		return sys_listprog((const char *)arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
+	case 9:
+		return count_procs();
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
+}
+
+static uint64_t count_procs(void) {
+	uint64_t cnt = 0;
+	for (process_t *p = process_list; p; p = p->next, ++cnt);
+	return cnt;
 }
 
 static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {

@@ -71,6 +71,8 @@ typedef struct process_t {
 	int ret_value;
 } process_t;
 
+extern process_t *process_list;
+
 // yield control to scheduler
 // ends timeslice of process
 void yield(void);

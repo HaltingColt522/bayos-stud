@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
 	if (argc == 1) {
 		uint64_t cap = 512, out = 0;
 		uint8_t *buf = malloc(cap);
-		if (!buf) { printf("help: malloc failed\n"); return 1; }
+		if (!buf) { fprintf(stderr, "help: malloc failed\n"); return 1; }
 
 		int err = listprog("/usr/bin/", buf, cap, &out);
 

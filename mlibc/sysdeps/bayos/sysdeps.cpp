@@ -13,15 +13,16 @@
         __builtin_unreachable(); \
     })
 
-#define SYS_READ 0
-#define SYS_WRITE 1
-#define SYS_ANON_ALLOCATE 2
-#define SYS_EXIT 3
-#define SYS_ANON_FREE 4
-#define SYS_FORK 5
-#define SYS_EXECVE 6
-#define SYS_WAITPID 7
-#define SYS_LIST_PROG 8
+#define SYS_READ			0
+#define SYS_WRITE			1
+#define SYS_ANON_ALLOCATE	2
+#define SYS_EXIT			3
+#define SYS_ANON_FREE		4
+#define SYS_FORK			5
+#define SYS_EXECVE			6
+#define SYS_WAITPID			7
+#define SYS_LIST_PROG		8
+#define SYS_COUNT_PROCS		9
 
 namespace mlibc {
 	int sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
@@ -34,6 +35,10 @@ namespace mlibc {
 		return 0;
 	}
 
+
+	uint64_t sys_listprocs(void) {
+		return syscall(SYS_COUNT_PROCS);
+	}
 
     int sys_write(int fd, const void *buffer, size_t count, ssize_t *written) {
         auto result = syscall(SYS_WRITE, fd, buffer, count, (uint64_t)written);
@@ -149,4 +154,8 @@ namespace mlibc {
 
 extern "C" int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
 	return mlibc::sys_listprog(path, buf, len, out);
+}
+
+extern "C" uint64_t listprocs(void) {
+	return mlibc::sys_listprocs();
 }
