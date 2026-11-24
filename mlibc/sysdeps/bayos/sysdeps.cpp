@@ -22,7 +22,18 @@
 #define SYS_EXECVE			6
 #define SYS_WAITPID			7
 #define SYS_LIST_PROG		8
-#define SYS_COUNT_PROCS		9
+#define SYS_PS				9
+
+#define PS_CMD_MAX	32
+
+typedef struct {
+	uint64_t pid;
+	uint64_t tty;
+	uint64_t time;
+	char s;
+	char _pad[7];
+	char cmd[PS_CMD_MAX];
+} ps_proc_t;
 
 namespace mlibc {
 	int sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
@@ -36,8 +47,14 @@ namespace mlibc {
 	}
 
 
-	uint64_t sys_listprocs(void) {
-		return syscall(SYS_COUNT_PROCS);
+	int64_t sys_listprocs(ps_proc_t *buf, uint64_t max) {
+		auto result = syscall(SYS_PS, buf, max);
+
+		if (result < 0) {
+			return -result;
+		}
+
+		return result;
 	}
 
     int sys_write(int fd, const void *buffer, size_t count, ssize_t *written) {
@@ -156,6 +173,6 @@ extern "C" int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *
 	return mlibc::sys_listprog(path, buf, len, out);
 }
 
-extern "C" uint64_t listprocs(void) {
-	return mlibc::sys_listprocs();
+extern "C" uint64_t listprocs(ps_proc_t *buf, uint64_t max) {
+	return mlibc::sys_listprocs(buf, max);
 }

@@ -3,19 +3,37 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include "manpage.h"
 
-extern int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
-extern uint64_t listprocs(void);
+static const manpage_entry_t man = {
+	.name = "ps",
+	.desc = "\
+Displays information about processes.\n\
+\n\
+PROCESS STATUS CODES\n\
+\t0 - READY,\n\
+\t1 - RUNNING,\n\
+\t2 - BLOCKED,\n\
+\t3 - DEAD",
+	.usage = "ps"
+};
+
+
+#define PS_CMD_MAX	32
+/* pretty small but works for now */
+#define PS_MAX_ENT	16
 
 typedef struct {
-	char s;
 	uint64_t pid;
 	uint64_t tty;
 	uint64_t time;
-	/* does NOT move this char array!!! in C, arrays of unknown length need to be
-	 * the last member of the struct */
-	char *cmd;
+	char s;
+	char _pad[7];
+	char cmd[PS_CMD_MAX];
 } ps_proc_t;
+
+extern int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
+extern uint64_t listprocs(ps_proc_t *buf, uint64_t max);
 
 size_t longest_line_length(const char *s) {
 	size_t longest = 0;
@@ -35,42 +53,39 @@ size_t longest_line_length(const char *s) {
 
 	return current > longest ? current : longest;
 }
-int main(void) {
-	uint64_t proc_cnt = listprocs();
-	printf("Number of processes: %ld\n", proc_cnt);
+int main(int argc, char **argv) {
+	if (handle_manpage(&man, argc, argv)) { return 0; }
+	ps_proc_t *lst = NULL;
+	uint64_t total = 0;
+	uint64_t cap = PS_MAX_ENT;
 
-	uint64_t cap = 512, out = 0;
-	uint8_t *buf = (uint8_t *)malloc(cap);
-	if (!buf) { fprintf(stderr, "help: malloc failed\n"); return 1; }
+	for (;;) {
+		ps_proc_t *tmp = (ps_proc_t *)realloc(lst, cap * sizeof(*lst));
 
-	int err = listprog("/usr/bin/", buf, cap, &out);
-	if ((err != 0) || (out > cap)) { free(buf); return 1; }
-
-	buf[out] = '\0';
-	uint64_t longest = (uint64_t)longest_line_length((const char *)buf);
-
-	ps_proc_t *ps_lst = calloc(proc_cnt, sizeof(*ps_lst));
-	if (!ps_lst) {
-		free(buf);
-		return 1;
-	}
-
-	for (uint64_t i = 0; i < proc_cnt; i++) {
-		ps_lst[i].cmd = malloc(longest + 1);
-		if (!ps_lst[i].cmd) {
-			for (uint64_t j = 0; j < i; j++) { free(ps_lst[j].cmd); }
-			free(ps_lst);
-			free(buf);
+		if (!tmp) {
+			free(lst);
+			fprintf(stderr, "%s: realloc failed!\n", argv[0]);
 			return 1;
 		}
+
+		lst = tmp;
+		total = listprocs(lst, cap);
+		if (total < 0) {
+			free(lst);
+			fprintf(stderr, "%s: error %ld\n", (long) - total);
+			return 1;
+		}
+		if ((uint64_t)total <= cap) { break; }
+
+		cap = (uint64_t)total + 8;
 	}
 
-	/* fill ps_lst[i] for usage, too lazy for now, will care abt it tmrrw */
+	printf("S\tPID\tTTY\tTIME\tCMD\n");
 
-	for (uint64_t i = 0; i < proc_cnt; i++) { free(ps_lst[i].cmd); }
+	for (uint64_t i = 0; i < total; i++) {
+		printf("%d\t%d\t%d\t%d\t%s\n", lst[i].s, lst[i].pid, lst[i].tty, lst[i].time, lst[i].cmd);
+	}
 
-	free(ps_lst);
-	free(buf);
-
+	free(lst);
 	return 0;
 }

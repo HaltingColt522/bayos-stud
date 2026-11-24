@@ -1,5 +1,6 @@
 #include <syscall.h>
 #include <initramfs.h>
+#include <interrupts.h>
 #include <io.h>
 #include <stdint.h>
 #include <printk.h>
@@ -79,7 +80,7 @@ static uint64_t waitpid_syscall(int pid, int *status, int flags);
 static uint64_t exit_syscall(int status) __attribute__((__noreturn__));
 static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
 static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, size_t *len_out);
-static uint64_t count_procs();
+static int64_t ps_syscall(ps_proc_t *buf, uint64_t max);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -103,19 +104,50 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 	case 8:
 		return sys_listprog((const char *)arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
 	case 9:
-		return count_procs();
+		return ps_syscall((ps_proc_t *)arg0, arg1);
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
 }
 
-static uint64_t count_procs(void) {
+static int64_t ps_syscall(ps_proc_t *buf, uint64_t max) {
+	process_t *proc = get_current_process();
+
+	if (!proc) { return -EFAULT; }
+
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+	if ((max > 0) && !(user_range_ok(cr3, (uint64_t)buf, max * sizeof(ps_proc_t)))) {
+		return -EFAULT;
+	}
+
+	ps_proc_t *kbuf = NULL;
+	if (max > 0) { kbuf = (ps_proc_t *)kmalloc(max * sizeof(ps_proc_t)); }
+	if ((max > 0) && !kbuf) { return -ENOMEM; }
+
+	uint64_t n = 0, total = 0;
+
 	uint64_t flags = save_irqdisable();
-	uint64_t cnt = 0;
-	for (process_t *p = process_list; p; p = p->next, ++cnt);
+	for (process_t *p = process_list; p; p = p->next, total++) {
+		if (n < max) {
+			memset(&kbuf[n], 0, sizeof(kbuf[n]));
+			kbuf[n].s = p->status;
+			kbuf[n].pid = p->pid;
+			kbuf[n].tty = 1;
+			kbuf[n].time = 0;
+			strcpy(kbuf[n].cmd, p->cmd);
+			n++;
+		}
+	}
 	irqrestore(flags);
-	return cnt;
+
+	if (n > 0) {
+		memcpy(buf, kbuf, n * sizeof(ps_proc_t));
+	}
+
+	if (kbuf) { kfree(kbuf); }
+
+	return (int64_t)total;
 }
 
 static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
@@ -486,6 +518,25 @@ static int exec_collect(uint64_t cr3, exec_args_t *a, char **vec, size_t max, si
 	return 0;
 }
 
+void get_program_name(const char path_buf[EXEC_PATH_MAX], char out[PROC_CMD_MAX]) {
+	size_t start = 0;
+	size_t end = 0;
+
+	while (end < EXEC_PATH_MAX && path_buf[end] != '\0') {
+		if (path_buf[end] == '/') {
+			start = end + 1;
+		}
+		end++;
+	}
+
+	size_t i = 0;
+	while (start < end && i < PROC_CMD_MAX - 1) {
+		out[i++] = path_buf[start++];
+	}
+
+	out[i] = '\0';
+}
+
 static volatile uint32_t exec_busy = 0;
 static uint8_t exec_img[EXEC_MAX_TOTAL + 4096] __attribute__((aligned(16)));
 
@@ -561,6 +612,7 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	anon_list_free(proc->anon_head);
 	proc->mmap_next = USER_MMAP_BASE;
 	proc->anon_head = NULL;
+	get_program_name(path_buf, proc->cmd);
 
 	// this is somehow needed for rtdl in mlibc
 	ba = MUTEX_LOCK(g_ba);

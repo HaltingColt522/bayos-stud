@@ -6,6 +6,7 @@
 #include <file_desc.h>
 
 #define USER_MMAP_BASE 0x100000000000ULL
+#define PROC_CMD_MAX 32
 
 #define MAX_FDS		0x10
 #define FD_STDIN	0x0
@@ -59,6 +60,8 @@ typedef struct process_t {
 	struct process_t *wait_next;
 
 	int pid;
+
+	char cmd[PROC_CMD_MAX];
 
 	// user space exclusive members
 	uintptr_t mmap_next;

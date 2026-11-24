@@ -86,7 +86,10 @@ static void write_char(framebuffer_t *fb, unsigned char c, uint32_t color) {
 }
 
 static void tab(framebuffer_t *fb) {
-	for (int i = 0; i < TAB_SIZE; i++) {
+	uint32_t col = fb->x_pos / CHAR_RASTER_WIDTH;
+	uint32_t spaces = TAB_SIZE - (col % TAB_SIZE);
+
+	for (uint32_t i = 0; i < spaces; i++) {
 		write_char(fb, ' ', 0xffffffff);
 	}
 }

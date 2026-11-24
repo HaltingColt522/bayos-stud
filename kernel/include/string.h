@@ -27,4 +27,12 @@ static inline char *strchr(const char *s, int c) {
 	}
 }
 
+static inline char *strcpy(char *dst, const char *src) {
+	char *dst_start = dst;
+
+	while ((*dst++ = *src++) != '\0');
+
+	return dst_start;
+}
+
 #endif // STRING_H
