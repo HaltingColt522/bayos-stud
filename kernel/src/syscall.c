@@ -111,8 +111,10 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 }
 
 static uint64_t count_procs(void) {
+	uint64_t flags = save_irqdisable();
 	uint64_t cnt = 0;
 	for (process_t *p = process_list; p; p = p->next, ++cnt);
+	irqrestore(flags);
 	return cnt;
 }
 
