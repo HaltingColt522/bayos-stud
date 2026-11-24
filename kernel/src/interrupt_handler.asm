@@ -32,14 +32,15 @@ timer_int_handler:
 	; move the stack pointer as first argument
 	mov rdi, rsp
 	call schedule
-	; returns a point to stack, store it
+	; returns a pointer to stack, store it
 	mov r15, rax
 
 	call get_current_process
 	; returns a pointer to the current process
 	; first member is cr3 -> pointer points to process cr3
+	mov rdx, [rax]
 	mov rcx, cr3
-	cmp rax, rcx
+	cmp rdx, rcx
 	je __cr3_equal
 
 	mov rcx, [rax]

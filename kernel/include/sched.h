@@ -60,12 +60,12 @@ typedef struct process_t {
 
 	int pid;
 
-	// user space process would not have this field
-	uint8_t *kernel_stack;
-
 	// user space exclusive members
 	uintptr_t mmap_next;
 	anon_block_t *anon_head;
+
+	// stack used for interrupt in ring3
+	void *kernel_stack;
 
 	file_t *fds[MAX_FDS];
 	int ret_value;

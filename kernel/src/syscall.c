@@ -175,6 +175,8 @@ static uint64_t exit_syscall(int status) {
 	proc->anon_head = NULL;
 	proc->ret_value = status;
 
+	kfree(proc->kernel_stack);
+
 	mark_current_proc_as_dead();
 }
 
@@ -388,6 +390,12 @@ static uint64_t fork_syscall(void) {
 	new_proc->cr3 = new_cr3;
 	new_proc->pid = get_unique_pid();
 
+	new_proc->kernel_stack = kmalloc(0x1000);
+	if (!new_proc->kernel_stack) {
+		kfree(new_proc);
+		goto fail_pt;
+	}
+
 	// copy the anon alloc linked list
 	anon_block_t *copy_head = NULL;
 	anon_block_t **tail = &copy_head;
@@ -396,6 +404,7 @@ static uint64_t fork_syscall(void) {
 		anon_block_t *node = kmalloc(sizeof(*node));
 		if (!node) {
 			anon_list_free(copy_head);
+			kfree(new_proc->kernel_stack);
 			kfree(new_proc);
 			goto fail_pt;
 		}

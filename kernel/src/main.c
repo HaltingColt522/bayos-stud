@@ -220,6 +220,12 @@ void setup_enter_userspace_proc(void) {
 	// write it into the proc struct
 	proc->context = &enter_ring_3_context;
 
+	proc->kernel_stack = kmalloc(0x1000);
+	if (!proc->kernel_stack) {
+		printk(QEMU_SERIAL | FB, "[FAIL] Failed to alloc init process kernel stack\n");
+		hcf();
+	}
+
 	// first allocate the stack
 	ba = MUTEX_LOCK(g_ba);
 	vmm_status_t st = vmm_map_range(ba, cr3, USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE, VMM_RW | VMM_XD | VMM_US);

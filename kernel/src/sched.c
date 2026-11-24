@@ -3,6 +3,7 @@
 #include <io.h>
 #include <limine.h>
 #include <printk.h>
+#include <gdt.h>
 
 // globals
 // only modified with functions for it
@@ -120,6 +121,10 @@ cpu_status_t *schedule(cpu_status_t *context) {
 	if (current_process != old_process) {
 		asm volatile("fxsave64 %0"  : "=m"(old_process->fpu_state) :: "memory");
 		asm volatile("fxrstor64 %0" :: "m"(current_process->fpu_state) : "memory");
+	}
+
+	if (current_process->pid != 0) {
+		change_rsp0(current_process->kernel_stack + 0x1000);
 	}
 
 	return current_process->context;
