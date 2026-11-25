@@ -17,6 +17,8 @@ static process_t init_process;
 
 extern void timer_int_handler;
 
+static uint64_t g_ticks;
+
 void sched_init(void) {
 	//
 	// first we need to set up a timer interrupt, so
@@ -72,7 +74,7 @@ void sched_init(void) {
 	io_wait();
 
 	// configure the timer
-	uint16_t divisor = (uint16_t)(1193182 / 100);
+	uint16_t divisor = (uint16_t)(1193182 / TIMER_HZ);
 
 	outb(PIT_COMMAND, 0x36);
 	outb(PIT_CHANNEL0, divisor & 0xff);
@@ -94,6 +96,7 @@ void sched_init(void) {
 // NOTE: this runs with interrupts disabled
 //
 cpu_status_t *schedule(cpu_status_t *context) {
+	g_ticks++;
 	process_t *old_process = current_process;
 	current_process->context = context;
 	if (current_process->status != DEAD && current_process->status != BLOCKED) {
@@ -216,4 +219,8 @@ process_t *get_process_from_pid(int pid) {
 
 	irqrestore(flags);
 	return NULL;
+}
+
+uint64_t get_ticks_ms(void) {
+	return (g_ticks * 1000) / TIMER_HZ;
 }

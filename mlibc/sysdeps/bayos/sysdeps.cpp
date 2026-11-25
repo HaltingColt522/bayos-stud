@@ -5,6 +5,8 @@
 #include <mlibc/all-sysdeps.hpp>
 #include <string.h>
 #include <stdint.h>
+#include <stdarg.h>
+#include <fcntl.h>
 
 #define STUB()                                                                                     \
     ({                                                                                             \
@@ -23,6 +25,8 @@
 #define SYS_WAITPID			7
 #define SYS_LIST_PROG		8
 #define SYS_PS				9
+#define SYS_SLEEP			10
+#define SYS_FDFLAGS			11
 
 #define PS_CMD_MAX	32
 
@@ -36,6 +40,46 @@ typedef struct {
 } ps_proc_t;
 
 namespace mlibc {
+	int sys_fcntl(int fd, int request, va_list args, int *result) {
+		uint64_t out = 0;
+
+		switch (request) {
+		case F_GETFL: {
+			uint64_t r = syscall(SYS_FDFLAGS, fd, 0, 0, &out);
+			if (r) { return (int)r; }
+			*result = (int)out;
+			return 0;
+			}
+		case F_SETFL: {
+			int val = va_arg(args, int);
+			uint64_t r = syscall(SYS_FDFLAGS, fd, 1, val, &out);
+			if (r) { return (int)r; }
+			*result = 0;
+			return 0;
+			}
+		case F_GETFD: {
+			*result = 0;
+			return 0;
+			}
+		case F_SETFD: {
+			*result = 0;
+			return 0;
+			}
+		default:
+			return EINVAL;
+		}
+	}
+
+
+	int sys_sleep(time_t *secs, long *nanos) {
+		uint64_t ms = (uint64_t)(*secs) * 1000 + (uint64_t)(*nanos) / 1000000;
+		if (ms == 0 && (*secs > 0 || *nanos > 0)) { ms == 1; }
+		uint64_t result = syscall(SYS_SLEEP, ms);
+		*secs = 0;
+		*nanos = 0;
+		return (int)result;
+	}
+
 	int sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out) {
 		auto result = syscall(SYS_LIST_PROG, path, buf, len, out);
 

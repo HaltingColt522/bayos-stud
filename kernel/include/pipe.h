@@ -24,6 +24,7 @@ pipe_t *pipe_create(pipe_t *pipe, uint8_t *buffer, uint64_t buffer_len);
 int64_t pipe_write(pipe_t *pipe, const uint8_t *data, uint64_t len);
 int pipe_try_write(pipe_t *pipe, uint8_t byte);
 int64_t pipe_read(pipe_t *pipe, uint8_t *out, uint64_t len);
+int64_t pipe_read_nb(pipe_t *p, uint8_t *out, uint64_t len);
 void pipe_close_read(pipe_t *pipe);
 void pipe_close_write(pipe_t *pipe);
 

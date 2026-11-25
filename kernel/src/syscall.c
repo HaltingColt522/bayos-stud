@@ -13,6 +13,7 @@
 #include <memory.h>
 #include <string.h>
 #include <elf.h>
+#include <fcntl.h>
 
 extern void _syscall_handler;
 
@@ -81,6 +82,8 @@ static uint64_t exit_syscall(int status) __attribute__((__noreturn__));
 static uint64_t sys_listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *out);
 static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, size_t *len_out);
 static int64_t ps_syscall(ps_proc_t *buf, uint64_t max);
+static uint64_t sleep_syscall(uint64_t ms);
+static uint64_t fdflags_syscall(uint64_t fd, uint64_t cmd, uint64_t val, uint64_t *out);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -105,10 +108,38 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return sys_listprog((const char *)arg0, (uint8_t *)arg1, arg2, (uint64_t *)arg3);
 	case 9:
 		return ps_syscall((ps_proc_t *)arg0, arg1);
+	case 10:
+		return sleep_syscall((uint64_t)arg0);
+	case 11:
+		return fdflags_syscall(arg0, arg1, arg2, (uint64_t *)arg3);
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
+}
+
+/* cmd == 0 -> get, 1 -> set */
+static uint64_t fdflags_syscall(uint64_t fd, uint64_t cmd, uint64_t val, uint64_t *out) {
+	process_t *proc = get_current_process();
+	if (!proc) { return EFAULT; }
+	if (fd >= MAX_FDS || !proc->fds[fd]) { return EBADF; }
+
+	file_t *f = proc->fds[fd];
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+
+	if (!user_range_ok(cr3, (uint64_t)out, sizeof(*out))) { return EFAULT; }
+
+	if (cmd == 1) { f->flags = (int)val; }
+	*out = (uint64_t)f->flags;
+	return 0;
+}
+
+static uint64_t sleep_syscall(uint64_t ms) {
+	uint64_t end = get_ticks_ms() + ms;
+	while (get_ticks_ms() < end) {
+		__asm__ volatile("sti\n\t" "hlt" : : : "memory");
+	}
+	return 0;
 }
 
 static int64_t ps_syscall(ps_proc_t *buf, uint64_t max) {
@@ -267,9 +298,17 @@ static uint64_t read_syscall(uint64_t fd, uint8_t *buf, size_t len, size_t *out)
 	uint8_t kbuf[READ_CHUNK];
 
 	if (!is_user_ptr((uint64_t)buf, chunk) || !user_range_ok(cr3, (uint64_t)buf, chunk)) { return EFAULT; }
-	int64_t n = file->ops->read(file, kbuf, chunk);
 
-	if (n < 0) { return -n; }
+	int64_t n = 0;
+
+	if (file->flags & O_NONBLOCK) {
+		n = file->ops->read_nb(file, kbuf, chunk);
+
+		if (n < 0) { return -n; }
+	} else {
+		n = file->ops->read(file, kbuf, chunk);
+	}
+
 
 	// echo the input
 	// normally this wouldnt belong here, put in a proper tty read function. since we dont have tty support for now and just use pipes i added it here to micic proper behaviour

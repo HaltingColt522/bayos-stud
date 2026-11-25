@@ -76,9 +76,8 @@ static void write_char(framebuffer_t *fb, unsigned char c, uint32_t color) {
 	for (int y = 0; y < CHAR_RASTER_HEIGHT; y++) {
 		uint8_t pixel_row = glyph[y];
 		for (int x = 0; x < CHAR_RASTER_WIDTH; x++) {
-			if (pixel_row & (1 << (7 - x))) {
-				write_pixel(fb, fb->x_pos + x, fb->y_pos + y, color);
-			}
+			uint32_t px = (pixel_row & (1 << (7 - x))) ? color : 0x00000000;
+			write_pixel(fb, fb->x_pos + x, fb->y_pos + y, px);
 		}
 	}
 

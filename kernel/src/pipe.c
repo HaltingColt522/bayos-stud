@@ -126,6 +126,38 @@ int64_t pipe_read(pipe_t *p, uint8_t *out, uint64_t len) {
 	return (int64_t)i;
 }
 
+/* read without blocking */
+int64_t pipe_read_nb(pipe_t *p, uint8_t *out, uint64_t len) {
+	if (!p || !out) {
+		return -1;
+	}
+
+	if (len == 0) {
+		return 0;
+	}
+
+	uint64_t i = 0;
+
+	for (; i < len; i++) {
+		if (!sem_trywait(&p->sem_full)) { break; }
+
+		mutex_lock(&p->buf_lock);
+		if (p->count == 0) {
+			mutex_unlock(&p->buf_lock);
+			sem_signal(&p->sem_full);
+			break;
+		}
+
+		out[i] = p->buffer[p->read_pos];
+		p->read_pos = (p->read_pos + 1) % p->buffer_len;
+		p->count--;
+		mutex_unlock(&p->buf_lock);
+		sem_signal(&p->sem_empty);
+	}
+
+	return (int64_t)i;
+}
+
 void pipe_close_read(pipe_t *p) {
 	if (!p) {
 		return;

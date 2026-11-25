@@ -8,6 +8,8 @@
 #define USER_MMAP_BASE 0x100000000000ULL
 #define PROC_CMD_MAX 32
 
+#define TIMER_HZ	100
+
 #define MAX_FDS		0x10
 #define FD_STDIN	0x0
 #define FD_STDOUT	0x1
@@ -96,6 +98,8 @@ process_t *get_process_from_pid(int);
 
 // generates a unique pid
 int get_unique_pid(void);
+
+uint64_t get_ticks_ms(void);
 
 #define USER_PROC_STACK_SIZE (0x200000)
 #define USER_PROC_STACK_ADDRESS_UPPER_BOUND (0x7fffffffe000)
