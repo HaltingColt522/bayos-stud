@@ -27,6 +27,8 @@
 #define SYS_PS				9
 #define SYS_SLEEP			10
 #define SYS_FDFLAGS			11
+#define SYS_FB_INFO			12
+#define SYS_FB_BLIT			13
 
 #define PS_CMD_MAX	32
 
@@ -39,7 +41,32 @@ typedef struct {
 	char cmd[PS_CMD_MAX];
 } ps_proc_t;
 
+typedef struct {
+	uint64_t width;
+	uint64_t height;
+	uint64_t bpp;
+	uint64_t pitch;
+} fb_info_t;
+
 namespace mlibc {
+	int sys_fb_info(fb_info_t *i) {
+		auto result = syscall(SYS_FB_INFO, i);
+		if (result != 0) {
+			return result;
+		}
+
+		return 0;
+	}
+
+	int sys_fb_blit(uint32_t *out, uint64_t x, uint64_t y, uint64_t w, uint64_t h) {
+		auto result = syscall(SYS_FB_BLIT, out, x, y, w, h);
+		if (result != 0) {
+			return result;
+		}
+
+		return 0;
+	}
+
 	int sys_fcntl(int fd, int request, va_list args, int *result) {
 		uint64_t out = 0;
 
@@ -219,4 +246,12 @@ extern "C" int listprog(const char *path, uint8_t *buf, uint64_t len, uint64_t *
 
 extern "C" uint64_t listprocs(ps_proc_t *buf, uint64_t max) {
 	return mlibc::sys_listprocs(buf, max);
+}
+
+extern "C" int fb_info(fb_info_t *i) {
+	return mlibc::sys_fb_info(i);
+}
+
+extern "C" int fb_blit(uint32_t *out, uint64_t x, uint64_t y, uint64_t w, uint64_t h) {
+	return mlibc::sys_fb_blit(out, x, y, w, h);
 }

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <framebuffer.h>
 
 extern void _syscall_handler;
 
@@ -84,6 +85,8 @@ static int copy_user_str(uint64_t cr3, const char *src, char *dst, size_t max, s
 static int64_t ps_syscall(ps_proc_t *buf, uint64_t max);
 static uint64_t sleep_syscall(uint64_t ms);
 static uint64_t fdflags_syscall(uint64_t fd, uint64_t cmd, uint64_t val, uint64_t *out);
+static uint64_t fb_info_syscall(fb_info_t *out);
+static uint64_t fb_blit_syscall(const uint32_t *buf, uint64_t x, uint64_t y, uint64_t w, uint64_t h);
 
 uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
 	switch (index) {
@@ -112,10 +115,42 @@ uint64_t syscall_handler(uint64_t index, uint64_t arg0, uint64_t arg1, uint64_t 
 		return sleep_syscall((uint64_t)arg0);
 	case 11:
 		return fdflags_syscall(arg0, arg1, arg2, (uint64_t *)arg3);
+	case 12:
+		return fb_info_syscall((fb_info_t *)arg0);
+	case 13:
+		return fb_blit_syscall((uint32_t *)arg0, arg1, arg2, arg3, arg4);
 	default:
 		printk(QEMU_SERIAL, "Unimplemented syscall called: %x\n", index);
 		return ENOSYS;
 	}
+}
+
+static uint64_t fb_info_syscall(fb_info_t *out) {
+	process_t *proc = get_current_process();
+	if (!proc) { return EFAULT; }
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+	if (!user_range_ok(cr3, (uint64_t)out, sizeof(*out)) ||
+	        !is_user_ptr((uint64_t)out, sizeof(*out))) { return EFAULT; }
+
+	fb_info_t tmp;
+	fb_get_info(&tmp);
+	memcpy(out, &tmp, sizeof(tmp));
+	return 0;
+}
+
+static uint64_t fb_blit_syscall(const uint32_t *buf, uint64_t x, uint64_t y, uint64_t w, uint64_t h) {
+	process_t *proc = get_current_process();
+	if (!proc) { return EFAULT; }
+	if (w == 0 || h == 0) { return 0; }
+
+	if (w > 0x4000 || h > 0x4000) { return EINVAL; }
+	uint64_t bytes = w * h * 4;
+
+	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+	if (!is_user_ptr((uint64_t)buf, bytes) ||
+	        !user_range_ok(cr3, (uint64_t)buf, bytes)) { return EFAULT; }
+
+	return fb_blit(buf, x, y, w, h) ? EINVAL : 0;
 }
 
 /* cmd == 0 -> get, 1 -> set */

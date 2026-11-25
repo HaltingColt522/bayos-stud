@@ -146,3 +146,27 @@ void framebuffer_init(struct limine_framebuffer *info, framebuffer_t *fb) {
 	clear(fb);
 }
 
+/* NOTE: don't use printk between LOCK and UNLOCK. it will cause a deadlock in printk */
+void fb_get_info(fb_info_t *out) {
+	framebuffer_t *fb = MUTEX_LOCK(g_fb);
+	*out = fb->info;
+	MUTEX_UNLOCK(g_fb);
+	return;
+}
+
+int64_t fb_blit(const uint32_t *src, uint64_t x, uint64_t y, uint64_t w, uint64_t h) {
+	framebuffer_t *fb = MUTEX_LOCK(g_fb);
+	int64_t ret = 0;
+
+	if (x >= width(fb) || y >= height(fb) || w > width(fb) - x || h > height(fb) - y) {
+		ret = -1;
+	} else {
+		for (uint64_t row = 0; row < h; row++) {
+			uint8_t *dst = (uint8_t *)fb->buffer + (y + row) * pitch(fb) + x * 4;
+			memcpy(dst, src + row * w, w * 4);
+		}
+	}
+
+	MUTEX_UNLOCK(g_fb);
+	return ret;
+}
