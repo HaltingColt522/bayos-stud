@@ -184,8 +184,9 @@ elf_status_t elf_load(bitmap_allocator_t *ba, uint64_t pml4, uint8_t *elf, uint6
 int is_elf(void *elf) {
 	elf64_ehdr *eh = elf;
 
-	if (eh->magic != 0x464C457F)
+	if (eh->magic != 0x464C457F) {
 		return 0;
+	}
 
 	return 1;
 }
