@@ -1,5 +1,6 @@
 extern schedule
 extern get_current_process
+extern timer_tick
 
 extern syscall_handler
 extern keyboard_irq
@@ -28,6 +29,33 @@ timer_int_handler:
 	push r13
 	push r14
 	push r15
+
+	; timer_tick is now independend so it need to be called
+	call timer_tick
+	jmp __do_schedule
+
+global yield_int_handler
+yield_int_handler:
+	push rax
+	push rbx
+	push rcx
+	push rdx
+	push rbp
+	push rsi
+	push rdi
+	push r8
+	push r9
+	push r10
+	push r11
+	push r12
+	push r13
+	push r14
+	push r15
+	; we also don't need anything here, it will fall into __do_schedule
+
+; we need this part for the timer_int_handler and for the yield with timer_tick
+; so we will do it with a shared label
+__do_schedule:
 
 	; move the stack pointer as first argument
 	mov rdi, rsp

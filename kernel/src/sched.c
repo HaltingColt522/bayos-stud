@@ -16,8 +16,9 @@ process_t *current_process = NULL;
 static process_t init_process;
 
 extern void timer_int_handler;
+extern void yield_int_handler;
 
-static uint64_t g_ticks;
+static volatile uint64_t g_ticks;
 
 void sched_init(void) {
 	//
@@ -35,6 +36,7 @@ void sched_init(void) {
 	// and remap the pic
 	//
 	idt_set_descriptor(0x20, (uintptr_t)&timer_int_handler, 0x8e, 0);
+	idt_set_descriptor(0x81, (uintptr_t)&yield_int_handler, 0x8e, 0);
 
 #define PIT_CHANNEL0 0x40
 #define PIT_COMMAND 0x43
@@ -96,7 +98,6 @@ void sched_init(void) {
 // NOTE: this runs with interrupts disabled
 //
 cpu_status_t *schedule(cpu_status_t *context) {
-	g_ticks++;
 	process_t *old_process = current_process;
 	current_process->context = context;
 	if (current_process->status != DEAD && current_process->status != BLOCKED) {
@@ -133,8 +134,12 @@ cpu_status_t *schedule(cpu_status_t *context) {
 	return current_process->context;
 }
 
+void timer_tick(void) {
+	g_ticks++;
+}
+
 void yield(void) {
-	asm volatile("int $0x20");
+	asm volatile("int $0x81");
 }
 
 void insert_process(process_t *p) {
