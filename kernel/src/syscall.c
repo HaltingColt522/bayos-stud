@@ -632,6 +632,8 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	uint8_t *elf = NULL;
 	uint64_t elf_size = initramfs_lookup(path_buf, &elf);
 	if (!elf) { return -ENOENT; }
+	if (!is_elf(elf))
+		return -ENOENT;
 
 	exec_args_t *a = kmalloc(sizeof *a);
 	if (!a) { return -ENOMEM; }

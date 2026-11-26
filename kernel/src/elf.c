@@ -180,3 +180,12 @@ elf_status_t elf_load(bitmap_allocator_t *ba, uint64_t pml4, uint8_t *elf, uint6
 
 	return ELF_OK;
 }
+
+int is_elf(void *elf) {
+	elf64_ehdr *eh = elf;
+
+	if (eh->magic != 0x464C457F)
+		return 0;
+
+	return 1;
+}

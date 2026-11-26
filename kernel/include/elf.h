@@ -73,5 +73,6 @@ typedef struct __attribute__((packed)) {
 elf64_phdr_entry; /* program header entry */
 
 elf_status_t elf_load(bitmap_allocator_t *ba, uint64_t pml4, uint8_t *elf, uint64_t size, uint64_t *entry);
+int is_elf(void *elf);
 
 #endif // !ELF_H
