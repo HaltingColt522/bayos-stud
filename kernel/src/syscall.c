@@ -1,5 +1,6 @@
 #include <syscall.h>
 #include <initramfs.h>
+#include <fpu.h>
 #include <interrupts.h>
 #include <io.h>
 #include <stdint.h>
@@ -527,6 +528,8 @@ static uint64_t fork_syscall(void) {
 
 	new_proc->context = &context;
 
+	fpu_state_init(new_proc->fpu_state);
+
 	insert_process(new_proc);
 	yield();
 
@@ -618,6 +621,8 @@ static uint64_t execve_syscall(const char *path, char **argv, char **envp) {
 	process_t *proc = get_current_process();
 	if (proc == NULL) { return -EFAULT; }
 	uint64_t cr3 = proc->cr3 & VMM_ADDR_MASK_4K;
+
+	fpu_state_init(proc->fpu_state);
 
 	char path_buf[EXEC_PATH_MAX];
 	size_t path_len;

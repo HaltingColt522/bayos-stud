@@ -1,5 +1,6 @@
 #include <interrupts.h>
 #include <printk.h>
+#include <io.h>
 
 void exception_handler(uint64_t num, uint64_t err, iret_frame_t *frame) {
 	printk(QEMU_SERIAL | EARLY, "exception 0x%x occured\nError: 0x%x\n", num, err);
@@ -44,6 +45,17 @@ void idt_set_descriptor(uint8_t entry, uint64_t isr, uint8_t flags, uint8_t ist)
 
 extern uint64_t isr_stub_table[32];
 
+__attribute__((interrupt))
+void spurious_handler(iret_frame_t *frame) {
+	(void)frame;
+}
+
+__attribute__((interrupt))
+void spurious_irq15_handler(iret_frame_t *frame) {
+	(void)frame;
+	outb(0x20, 0x20);
+}
+
 void exceptions_init(void) {
 	idtr_t idtr = {
 		sizeof(idt) - 1,
@@ -57,6 +69,9 @@ void exceptions_init(void) {
 			idt_set_descriptor(i, isr_stub_table[i], 0x8e, 0);
 		}
 	}
+
+	idt_set_descriptor(0x27, (uintptr_t)&spurious_handler, 0x8e, 0);
+	idt_set_descriptor(0x2f, (uintptr_t)&spurious_irq15_handler, 0x8e, 0);
 
 	asm volatile("lidt %0" : : "m"(idtr) : "memory");
 }

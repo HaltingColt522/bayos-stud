@@ -226,6 +226,8 @@ void setup_enter_userspace_proc(void) {
 		hcf();
 	}
 
+	fpu_state_init(proc->fpu_state);
+
 	// first allocate the stack
 	ba = MUTEX_LOCK(g_ba);
 	vmm_status_t st = vmm_map_range(ba, cr3, USER_PROC_STACK_ADDRESS_LOWER_BOUND, 0, USER_PROC_STACK_SIZE, VMM_RW | VMM_XD | VMM_US);
