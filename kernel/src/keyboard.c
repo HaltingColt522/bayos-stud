@@ -21,8 +21,8 @@ static const uint8_t map_normal[128] = {
 	[0x0B]	=	'0',
 	/* [0x0C]	=	'ß', need to be added later for UTF-8 support */
 	/* [0x0D]	=	'´', need to be added later for UTF-8 support */
-	[0x0E]	=	0x7F,
-	[0x0F]	=	0x09,
+	[0x0E]	=	0x7F, /* backspace */
+	[0x0F]	=	0x09, /* tab */
 	[0x10]	=	'q',
 	[0x11]	=	'w',
 	[0x12]	=	'e',
@@ -165,6 +165,8 @@ static uint8_t lookup(uint8_t key, bool keyUp, bool was_ext) {
 	if (isalpha(base)) { shift = shift != capslck; }
 
 	uint8_t c = shift ? map_shift[key] : base;
+
+	if (map_normal[key] == 0x7F) { return '\b'; }
 
 	if ((ctrl) && (isalpha(base))) { c = base & 0x1F; }
 

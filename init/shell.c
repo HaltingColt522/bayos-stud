@@ -23,6 +23,43 @@ static int tokenize(char *line, char **argv) {
 	return argc;
 }
 
+
+static int read_line(char *buf, size_t cap) {
+	size_t len = 0;
+
+	if (cap == 0) { return -1; }
+
+	for (;;) {
+		int c = getchar();
+
+		if (c == EOF) {
+			if (len == 0) { return -1; }
+			break;
+		}
+
+		if (c == '\n' || c == '\r') {
+			break;
+		}
+
+		if (c == '\b' || c == 0x7f) {
+			if (len > 0) {
+				buf[--len] = '\0';
+				fflush(stdout);
+			}
+			continue;
+		}
+
+		if (len + 1 < cap) {
+			buf[len++] = (char)c;
+			buf[len] = '\0';
+			fflush(stdout);
+		}
+	}
+
+	buf[len] = '\0';
+	return (int)len;
+}
+
 int main(int argc, char **argv) {
 	if (handle_manpage(&man, argc, argv)) { return 0; }
 
@@ -36,7 +73,7 @@ int main(int argc, char **argv) {
 		printf("> ");
 		fflush(stdout);
 
-		if (!fgets(line, sizeof(line), stdin)) {
+		if (read_line(line, sizeof(line)) < 0) {
 			break;
 		}
 

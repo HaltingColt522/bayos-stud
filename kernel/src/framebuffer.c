@@ -93,6 +93,13 @@ static void tab(framebuffer_t *fb) {
 	}
 }
 
+static uint64_t last_column_x(framebuffer_t *fb) {
+	uint64_t usable = width(fb) - BORDER_PADDING - CHAR_RASTER_WIDTH;
+	/* largest k with BORDER_PADDING + k*W + W < width  =>  k*W < usable */
+	uint64_t k = (usable - 1) / CHAR_RASTER_WIDTH;
+	return BORDER_PADDING + k * CHAR_RASTER_WIDTH;
+}
+
 int framebuffer_putchar(framebuffer_t *fb, int c) {
 	switch (esc_state) {
 	case ST_ESC:
@@ -123,6 +130,22 @@ int framebuffer_putchar(framebuffer_t *fb, int c) {
 	case '\t':
 		tab(fb);
 		break;
+	case '\b': {
+		if (fb->x_pos >= BORDER_PADDING + CHAR_RASTER_WIDTH) {
+			fb->x_pos -= CHAR_RASTER_WIDTH;
+		} else if (fb->y_pos >= BORDER_PADDING + CHAR_RASTER_HEIGHT + BORDER_PADDING) {
+			fb->y_pos -= CHAR_RASTER_HEIGHT + BORDER_PADDING;
+			fb->x_pos = last_column_x(fb);
+		} else { break;}
+		write_char(fb, ' ', 0x00000000);
+		if (fb->x_pos >= BORDER_PADDING + CHAR_RASTER_WIDTH) {
+			fb->x_pos -= CHAR_RASTER_WIDTH;
+		} else if (fb->y_pos >= BORDER_PADDING + CHAR_RASTER_HEIGHT + BORDER_PADDING) {
+			fb->y_pos -= CHAR_RASTER_HEIGHT + BORDER_PADDING;
+			fb->x_pos = last_column_x(fb);
+		} else { break;}
+		break;
+	}
 	default:
 		uint64_t new_xpos = fb->x_pos + CHAR_RASTER_WIDTH;
 		if (new_xpos >= width(fb)) {
